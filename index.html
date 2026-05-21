@@ -766,6 +766,23 @@ function renderProfTable(){
 function confirmClearAll(){ if(window.confirm('Supprimer toutes les courses enregistrées ?')){ localStorage.removeItem('orientation_races'); renderProfDashboard(); } }
 
 
+// ─── TRACE → IMAGE BASE64 pour PDF ────────────────────
+function buildTraceDataURL(r, wPx, hPx) {
+  const tracePts = r.gpsTrace ? decodeTrace(r.gpsTrace) : [];
+  const checkpoints = (r.laps || [])
+    .filter(l => l.pos && l.pos.lat)
+    .map(l => ({ num: l.num, lat: l.pos.lat, lng: l.pos.lng }));
+  const pts = tracePts.length >= 2 ? tracePts : checkpoints;
+  if (pts.length < 2 && checkpoints.length < 2) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = wPx; canvas.height = hPx;
+  const ctx = canvas.getContext('2d');
+  drawTraceOnCtx(ctx, wPx, hPx,
+    pts.length >= 2 ? pts : checkpoints,
+    checkpoints);
+  return canvas.toDataURL('image/png');
+}
+
 // ─── EXPORT PDF ───────────────────────────────────────
 function exportPDF(){
   const races = getRaces();
@@ -1073,6 +1090,125 @@ function exportPDF(){
       }
 
       curY += cardH + 6;
+
+      // ── PAGE CARTE GPS (une page par élève si données disponibles) ──
+      const traceImg = buildTraceDataURL(r, 900, 500);
+      const cpWithPos = realOrder.filter(l => l.pos && l.pos.lat);
+
+      if (traceImg) {
+        doc.addPage();
+
+        // Header de la page carte
+        doc.setFillColor(26, 58, 42);
+        doc.rect(0, 0, W, 18, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
+        doc.text('TRACE GPS — ' + r.prenom.toUpperCase(), 14, 11);
+        doc.setFontSize(8); doc.setTextColor(116, 198, 157);
+        const dateStr2 = new Date(r.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+        doc.text(fmtFull(r.finalTime) + '  ·  ' + r.validated + '/' + r.nbPostes + ' postes  ·  ' + dateStr2, W - 14, 11, { align:'right' });
+
+        // Légende couleur (bandeau sous le header)
+        doc.setFillColor(240, 248, 243);
+        doc.rect(0, 18, W, 10, 'F');
+        const legendItems = [
+          { color:[116,198,157], label:'Trace GPS' },
+          { color:[82,183,136],  label:'Depart' },
+          { color:[240,165,0],   label:'Arrivee / Postes valides' },
+          { color:[230,57,70],   label:'Poste non geolocalise' }
+        ];
+        let lx = 14;
+        legendItems.forEach(item => {
+          doc.setFillColor(...item.color);
+          doc.circle(lx + 2, 23, 2, 'F');
+          doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(50,80,60);
+          doc.text(item.label, lx + 6, 24.5);
+          lx += doc.getTextWidth(item.label) + 16;
+        });
+
+        // Image de la carte
+        const mapX = 14, mapY = 31;
+        const mapW = W - 28;
+        const mapH = mapW * 500 / 900; // ratio 900×500
+        doc.addImage(traceImg, 'PNG', mapX, mapY, mapW, mapH);
+
+        // Bordure autour de la carte
+        doc.setDrawColor(180, 210, 190); doc.setLineWidth(0.4);
+        doc.rect(mapX, mapY, mapW, mapH);
+
+        // Tableau des postes géolocalisés sous la carte
+        const tableY = mapY + mapH + 8;
+
+        if (cpWithPos.length > 0) {
+          doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(26,58,42);
+          doc.text('Coordonnees GPS des postes valides', 14, tableY);
+          doc.setDrawColor(116, 198, 157); doc.setLineWidth(0.3);
+          doc.line(14, tableY + 1.5, W - 14, tableY + 1.5);
+
+          // En-têtes colonnes
+          const colsGps = [
+            { label:'Poste',    x: 14,    w: 18 },
+            { label:'Temps',    x: 34,    w: 24 },
+            { label:'Split',    x: 60,    w: 22 },
+            { label:'Latitude', x: 84,    w: 38 },
+            { label:'Longitude',x: 124,   w: 38 },
+            { label:'Precision',x: 164,   w: 28 }
+          ];
+          const hdrY = tableY + 8;
+          doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(100, 140, 110);
+          colsGps.forEach(c => doc.text(c.label, c.x, hdrY));
+          doc.setDrawColor(200,225,210); doc.setLineWidth(0.2);
+          doc.line(14, hdrY + 1.5, W - 14, hdrY + 1.5);
+
+          let prevT = 0;
+          cpWithPos.sort((a,b) => a.time - b.time).forEach((lap, ri) => {
+            const ry = hdrY + 6 + ri * 7;
+            const split = lap.time - prevT; prevT = lap.time;
+            if (ri % 2 === 0) {
+              doc.setFillColor(240, 248, 243);
+              doc.rect(13, ry - 4.5, W - 26, 6.5, 'F');
+            }
+            doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+
+            // Bulle numéro poste
+            doc.setFillColor(240, 165, 0);
+            doc.circle(colsGps[0].x + 3, ry - 1.5, 3.5, 'F');
+            doc.setTextColor(255,255,255); doc.setFontSize(6); doc.setFont('helvetica','bold');
+            doc.text(String(lap.num), colsGps[0].x + 3, ry - 0.2, { align:'center' });
+
+            doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(50,80,60);
+            doc.text(fmtFull(lap.time),           colsGps[1].x, ry);
+            doc.setTextColor(100,140,110);
+            doc.text('+' + fmtFull(split),         colsGps[2].x, ry);
+            doc.setTextColor(50,80,60);
+            doc.text(lap.pos.lat.toFixed(6),       colsGps[3].x, ry);
+            doc.text(lap.pos.lng.toFixed(6),       colsGps[4].x, ry);
+            doc.setTextColor(lap.pos.acc && lap.pos.acc <= 10 ? [45,106,79] : lap.pos.acc <= 25 ? [180,120,20] : [180,60,50]);
+            doc.text(lap.pos.acc ? '±' + lap.pos.acc + ' m' : '—', colsGps[5].x, ry);
+          });
+
+          // Postes sans position
+          const cpNoPos = realOrder.filter(l => !l.pos || !l.pos.lat);
+          if (cpNoPos.length > 0) {
+            const noY = hdrY + 6 + cpWithPos.length * 7 + 4;
+            doc.setFontSize(7); doc.setFont('helvetica','italic'); doc.setTextColor(180,60,50);
+            doc.text('Postes sans donnee GPS : ' + cpNoPos.map(l => l.num).join(', '), 14, noY);
+          }
+        } else {
+          // Aucun poste géolocalisé — trace seule
+          doc.setFontSize(8); doc.setFont('helvetica','italic'); doc.setTextColor(140,160,145);
+          doc.text('Trace GPS enregistree — aucune position de poste disponible.', 14, tableY + 6);
+        }
+
+        // Page de continuation seulement si ce n'est pas le dernier élève
+        if (ri < sorted.length - 1) {
+          doc.addPage();
+          doc.setFillColor(26, 58, 42);
+          doc.rect(0, 0, W, 18, 'F');
+          doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
+          doc.text("ANALYSE DETAILLEE DES PARCOURS (suite)", 14, 11);
+          curY = 26;
+        }
+      }
     });
 
     // ── FOOTERS ──
