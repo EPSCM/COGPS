@@ -18,7 +18,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<!-- jsQR chargé dynamiquement avec fallback multi-CDN (voir loadJsQR()) -->
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -1314,11 +1314,53 @@ function closeQR() { document.getElementById('qr-overlay').style.display = 'none
 
 // ─── SCANNER ──────────────────────────────────────────
 let scanInterval = null;
-let scanStream = null;
-let scanActive = false;
+let scanStream   = null;
+let scanActive   = false;
+let jsQRReady    = false;   // true quand jsQR est chargé
+
+// CDN sources pour jsQR, testés dans l'ordre
+const JSQR_CDNS = [
+  'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
+  'https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js'
+];
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload  = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function loadJsQR() {
+  if (typeof jsQR !== 'undefined') { jsQRReady = true; return true; }
+  for (const url of JSQR_CDNS) {
+    try {
+      await loadScript(url);
+      if (typeof jsQR !== 'undefined') { jsQRReady = true; console.log('[Scanner] jsQR chargé depuis', url); return true; }
+    } catch(e) { console.warn('[Scanner] CDN échoué :', url); }
+  }
+  return false;
+}
+
+// Déterminer la stratégie de scan disponible
+async function getScanStrategy() {
+  // 1. BarcodeDetector (API native — Chrome Android / Chrome Desktop)
+  if ('BarcodeDetector' in window) {
+    try {
+      const formats = await BarcodeDetector.getSupportedFormats();
+      if (formats.includes('qr_code')) return 'native';
+    } catch(e) {}
+  }
+  // 2. jsQR (bibliothèque JS)
+  if (await loadJsQR()) return 'jsqr';
+  return null;
+}
 
 async function startScanner() {
-  // Nettoyage d'un scan précédent
   stopScanLoop();
 
   const overlay = document.getElementById('scan-overlay');
@@ -1332,20 +1374,29 @@ async function startScanner() {
   overlay.style.display = 'flex';
   scanActive = true;
 
-  // Vérifier que jsQR est bien chargé
-  if (typeof jsQR === 'undefined') {
-    showScanError('La librairie jsQR n\'est pas chargée.<br>Vérifie ta connexion internet et recharge la page.');
+  // Afficher un indicateur de chargement
+  result.style.display = 'block';
+  result.innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.5);font-size:14px;">
+    <div style="font-size:30px;margin-bottom:8px;">⏳</div>Initialisation du scanner…</div>`;
+
+  // Déterminer la stratégie
+  const strategy = await getScanStrategy();
+  result.style.display = 'none'; result.innerHTML = '';
+
+  if (!strategy) {
+    showScanError(`Aucun scanner QR disponible sur cet appareil.<br>
+      <small style="opacity:.7">BarcodeDetector non supporté et jsQR inaccessible (pas de réseau ?).<br>
+      Essaie avec Chrome sur Android ou Chrome Desktop.</small>`);
     return;
   }
 
-  // Vérifier que la caméra est disponible
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showScanError('La caméra n\'est pas accessible depuis ce navigateur.<br>Assure-toi d\'être en HTTPS.');
+  // Accès caméra
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showScanError('La caméra n\'est pas accessible.<br><small>Assure-toi d\'utiliser HTTPS.</small>');
     return;
   }
 
   try {
-    // Couper le stream précédent si existant
     if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
 
     scanStream = await navigator.mediaDevices.getUserMedia({
@@ -1353,73 +1404,80 @@ async function startScanner() {
     });
 
     video.srcObject = scanStream;
-
-    // Attendre que la vidéo soit réellement prête avant de scanner
     await new Promise((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = (e) => reject(e);
-      setTimeout(reject, 8000); // timeout 8s
+      video.onloadedmetadata = resolve;
+      video.onerror = reject;
+      setTimeout(reject, 8000);
     });
-
     await video.play();
 
-    // Démarrer la boucle de scan
-    startScanLoop(video);
+    if (hint) hint.style.display = 'block';
+    startScanLoop(video, strategy);
 
   } catch(e) {
-    const msg = e.name === 'NotAllowedError'
-      ? 'Permission caméra refusée.<br>Autorise l\'accès à la caméra dans les réglages du navigateur.'
-      : e.name === 'NotFoundError'
-      ? 'Aucune caméra détectée sur cet appareil.'
-      : e.name === 'NotReadableError'
-      ? 'Caméra déjà utilisée par une autre appli.'
-      : 'Caméra inaccessible.<br><small style="opacity:.7">' + e.message + '</small>';
-    showScanError(msg);
+    const msgs = {
+      NotAllowedError:  'Permission caméra refusée.<br><small>Autorise la caméra dans les réglages du navigateur.</small>',
+      NotFoundError:    'Aucune caméra détectée sur cet appareil.',
+      NotReadableError: 'Caméra déjà utilisée par une autre application.'
+    };
+    showScanError(msgs[e.name] || 'Caméra inaccessible.<br><small>' + e.message + '</small>');
   }
 }
 
-function startScanLoop(video) {
-  stopScanLoop(); // ne jamais doubler
-  scanInterval = setInterval(() => {
+function startScanLoop(video, strategy) {
+  stopScanLoop();
+  let detector = null;
+  if (strategy === 'native') {
+    detector = new BarcodeDetector({ formats: ['qr_code'] });
+  }
+
+  scanInterval = setInterval(async () => {
     if (!scanActive) { stopScanLoop(); return; }
-    // Vérifier que la vidéo diffuse bien des frames
     if (!video.videoWidth || video.readyState < 2) return;
-    scanFrame(video);
-  }, 200);
+
+    try {
+      if (strategy === 'native') {
+        // BarcodeDetector — le plus rapide, pas besoin de canvas
+        const codes = await detector.detect(video);
+        if (codes.length > 0 && codes[0].rawValue) {
+          stopScanLoop();
+          flashSuccess();
+          setTimeout(() => renderScanResult(codes[0].rawValue), 150);
+        }
+      } else {
+        // jsQR — via canvas
+        const canvas = document.getElementById('scan-canvas');
+        canvas.width  = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0);
+        const img  = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+        if (code?.data) {
+          stopScanLoop();
+          flashSuccess();
+          setTimeout(() => renderScanResult(code.data), 150);
+        }
+      }
+    } catch(e) { /* frame ignorée */ }
+  }, strategy === 'native' ? 300 : 200);
+}
+
+function flashSuccess() {
+  const v = document.getElementById('scan-video');
+  if (v) { v.style.borderColor = '#74c69d'; v.style.boxShadow = '0 0 24px rgba(116,198,157,.7)'; }
 }
 
 function stopScanLoop() {
   if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
 }
 
-function scanFrame(video) {
-  const canvas = document.getElementById('scan-canvas');
-  if (!canvas) return;
-  canvas.width  = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(video, 0, 0);
-  let img;
-  try { img = ctx.getImageData(0, 0, canvas.width, canvas.height); }
-  catch(e) { return; }
-
-  // attemptBoth = détecte QR sombres ET clairs (inclut nos QR blanc sur blanc)
-  const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-  if (code && code.data) {
-    stopScanLoop();
-    // Flash visuel de succès
-    const video = document.getElementById('scan-video');
-    if (video) { video.style.borderColor = '#74c69d'; video.style.boxShadow = '0 0 20px rgba(116,198,157,.6)'; }
-    setTimeout(() => renderScanResult(code.data), 150);
-  }
-}
-
 function stopScanner() {
   scanActive = false;
   stopScanLoop();
   if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
-  const video = document.getElementById('scan-video');
-  if (video) { video.srcObject = null; video.style.borderColor = ''; video.style.boxShadow = ''; }
+  const v = document.getElementById('scan-video');
+  if (v) { v.srcObject = null; v.style.borderColor = ''; v.style.boxShadow = ''; }
   document.getElementById('scan-overlay').style.display = 'none';
 }
 
@@ -1430,7 +1488,7 @@ function showScanError(msg) {
   result.innerHTML = `
     <div style="text-align:center;padding:20px;">
       <div style="font-size:36px;margin-bottom:12px;">📵</div>
-      <p style="color:#e63946;font-size:14px;line-height:1.6;margin-bottom:16px;">${msg}</p>
+      <p style="color:#e63946;font-size:14px;line-height:1.7;margin-bottom:16px;">${msg}</p>
       <button onclick="startScanner()"
         style="background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:12px;
                color:rgba(255,255,255,.7);font-size:14px;padding:12px 24px;cursor:pointer;width:100%;">
