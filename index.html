@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🧭 Course d'Orientation</title>
+
+<!-- ═══ PWA ═══ -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1a3a2a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Orientation">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --forest:#1a3a2a; --leaf:#2d6a4f; --lime:#74c69d;
+    --sand:#f8f4ef;   --gold:#f0a500; --white:#ffffff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{font-family:'DM Sans',sans-serif;background:var(--sand);min-height:100vh;overflow-x:hidden;}
+  .font-display{font-family:'Bebas Neue',sans-serif;}
+
+  .screen{display:none;min-height:100vh;flex-direction:column;}
+  .screen.active{display:flex;}
+
+  .topo-bg{
+    background-color:var(--forest);
+    background-image:
+      repeating-radial-gradient(ellipse at 30% 40%,transparent 0,transparent 40px,rgba(116,198,157,.06) 40px,rgba(116,198,157,.06) 41px),
+      repeating-radial-gradient(ellipse at 70% 60%,transparent 0,transparent 60px,rgba(116,198,157,.04) 60px,rgba(116,198,157,.04) 61px),
+      repeating-radial-gradient(ellipse at 50% 50%,transparent 0,transparent 80px,rgba(116,198,157,.03) 80px,rgba(116,198,157,.03) 81px);
+  }
+
+  .timer-display{font-family:'Bebas Neue',sans-serif;font-size:clamp(56px,18vw,96px);letter-spacing:.04em;line-height:1;color:var(--white);text-shadow:0 0 40px rgba(116,198,157,.4);}
+  .timer-ms{font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,8vw,48px);color:var(--lime);opacity:.9;}
+
+  .countdown-num{font-family:'Bebas Neue',sans-serif;font-size:clamp(120px,40vw,240px);line-height:1;animation:countdown-pop .8s ease-out forwards;}
+  @keyframes countdown-pop{0%{transform:scale(1.6);opacity:0}30%{transform:scale(.95);opacity:1}70%{transform:scale(1);opacity:1}100%{transform:scale(.6);opacity:0}}
+
+  .checkpoint-btn{aspect-ratio:1;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:clamp(20px,6vw,30px);transition:all .2s cubic-bezier(.34,1.56,.64,1);border:2.5px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);cursor:pointer;position:relative;overflow:hidden;user-select:none;}
+  .checkpoint-btn::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(116,198,157,.3),transparent 70%);opacity:0;transition:opacity .3s;}
+  .checkpoint-btn.validated{background:linear-gradient(135deg,var(--leaf),var(--lime));border-color:var(--lime);color:var(--white);transform:scale(.97);box-shadow:0 4px 20px rgba(116,198,157,.35);}
+  .checkpoint-btn.validated::before{opacity:1;}
+  .checkpoint-btn:active{transform:scale(.9);}
+  .checkpoint-label{font-size:11px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:.05em;opacity:.7;text-transform:uppercase;}
+
+  @keyframes pulse-ring{0%{transform:scale(.9);box-shadow:0 0 0 0 rgba(116,198,157,.6)}70%{transform:scale(1);box-shadow:0 0 0 10px rgba(116,198,157,0)}100%{transform:scale(.9);box-shadow:0 0 0 0 rgba(116,198,157,0)}}
+  .running-indicator{animation:pulse-ring 2s infinite;}
+
+  .progress-track{height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden;}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--lime),var(--gold));border-radius:99px;transition:width .5s cubic-bezier(.34,1.56,.64,1);}
+
+  .input-field{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:14px;color:white;font-family:'DM Sans',sans-serif;font-size:18px;padding:16px 20px;width:100%;outline:none;transition:border-color .2s;}
+  .input-field::placeholder{color:rgba(255,255,255,.3);}
+  .input-field:focus{border-color:var(--lime);}
+
+  .stepper-btn{width:52px;height:52px;border-radius:12px;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.15);color:white;font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;user-select:none;}
+  .stepper-btn:active{background:var(--leaf);transform:scale(.9);}
+  .stepper-val{font-family:'Bebas Neue',sans-serif;font-size:48px;color:white;min-width:80px;text-align:center;}
+
+  .btn-primary{background:linear-gradient(135deg,var(--lime),#52b788);color:var(--forest);font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.08em;padding:18px 32px;border-radius:16px;border:none;cursor:pointer;width:100%;transition:all .2s;box-shadow:0 8px 24px rgba(116,198,157,.35);}
+  .btn-primary:active{transform:scale(.97);box-shadow:none;}
+
+  .badge{display:inline-flex;align-items:center;gap:6px;background:rgba(116,198,157,.15);border:1px solid rgba(116,198,157,.3);color:var(--lime);border-radius:99px;padding:4px 12px;font-size:13px;font-weight:600;}
+
+  .result-card{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:16px;padding:16px 20px;margin-bottom:10px;}
+
+  @keyframes finish-in{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}
+  .finish-anim{animation:finish-in .6s ease-out forwards;}
+
+  .lap-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px;}
+
+  @keyframes stop-pulse{0%,100%{box-shadow:0 8px 28px rgba(230,57,70,.45),0 0 0 0 rgba(230,57,70,.5)}50%{box-shadow:0 8px 28px rgba(230,57,70,.6),0 0 0 14px rgba(230,57,70,0)}}
+
+  .pin-dot{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.25);transition:all .2s;}
+  .pin-dot.filled{background:var(--lime);border-color:var(--lime);}
+  .pin-dot.error{background:#e63946;border-color:#e63946;}
+  .pin-key{aspect-ratio:1;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.12);border-radius:14px;color:white;font-family:'Bebas Neue',sans-serif;font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0;min-height:62px;}
+  .pin-key:active{background:rgba(116,198,157,.2);transform:scale(.92);}
+  .pin-key-ghost{background:transparent;border-color:transparent;}
+
+  .filter-btn{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);border-radius:99px;color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:7px 16px;cursor:pointer;white-space:nowrap;transition:all .2s;}
+  .filter-btn.active{background:rgba(116,198,157,.15);border-color:rgba(116,198,157,.4);color:var(--lime);}
+
+  .race-row{background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 16px;margin-bottom:8px;transition:background .2s;}
+  .race-row:hover{background:rgba(255,255,255,.07);}
+  @keyframes row-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .race-row{animation:row-in .25s ease-out both;}
+
+
+  /* TABS */
+  .tab-bar { display:flex; background:rgba(255,255,255,.06); border-radius:12px; padding:4px; gap:4px; }
+  .tab-btn { flex:1; padding:10px 0; border:none; border-radius:9px; font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:.08em; cursor:pointer; transition:all .2s; background:transparent; color:rgba(255,255,255,.4); }
+  .tab-btn.active { background:rgba(116,198,157,.18); color:var(--lime); box-shadow:0 2px 8px rgba(116,198,157,.15); }
+
+  /* PROJET — arrow list */
+  .projet-item { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.06); border:1.5px solid rgba(255,255,255,.1); border-radius:13px; padding:10px 14px; margin-bottom:8px; transition:all .25s cubic-bezier(.34,1.56,.64,1); }
+  .projet-item.moving { background:rgba(116,198,157,.1); border-color:rgba(116,198,157,.35); transform:scale(1.02); }
+  .projet-step { font-family:'Bebas Neue',sans-serif; font-size:11px; color:rgba(255,255,255,.3); letter-spacing:.08em; min-width:24px; }
+  .projet-num { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,var(--leaf),var(--lime)); display:flex; align-items:center; justify-content:center; font-family:'Bebas Neue',sans-serif; font-size:18px; color:white; flex-shrink:0; transition:background .2s; }
+  .projet-arrows { display:flex; flex-direction:column; gap:3px; margin-left:auto; flex-shrink:0; }
+  .arrow-btn { width:32px; height:28px; border-radius:8px; background:rgba(255,255,255,.08); border:1.5px solid rgba(255,255,255,.12); color:rgba(255,255,255,.55); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .15s; padding:0; }
+  .arrow-btn:active { background:rgba(116,198,157,.25); border-color:var(--lime); color:var(--lime); transform:scale(.88); }
+  .arrow-btn:disabled { opacity:.18; cursor:default; pointer-events:none; }
+
+  /* PLANNED ROUTE strip in running screen */
+  .plan-strip { display:flex; gap:4px; flex-wrap:wrap; padding:8px 10px; background:rgba(255,255,255,.04); border-radius:12px; border:1px solid rgba(255,255,255,.07); }
+  .plan-pill { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.08); border:1.5px solid rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-family:'Bebas Neue',sans-serif; font-size:12px; color:rgba(255,255,255,.5); flex-shrink:0; transition:all .3s; }
+  .plan-pill.done { background:linear-gradient(135deg,var(--leaf),var(--lime)); border-color:var(--lime); color:white; }
+  .plan-pill.current { border-color:var(--gold); color:var(--gold); box-shadow:0 0 8px rgba(240,165,0,.4); }
+
+  @keyframes tab-slide { from{opacity:0;transform:translateX(8px)} to{opacity:1;transform:translateX(0)} }
+  .tab-panel { animation:tab-slide .2s ease-out; }
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:rgba(116,198,157,.3);border-radius:99px;}
+
+  /* ── GPS badge ── */
+  .gps-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(116,198,157,.12);border:1px solid rgba(116,198,157,.25);border-radius:99px;padding:5px 12px;font-size:12px;font-weight:600;color:rgba(255,255,255,.55);transition:all .4s;}
+  .gps-badge.active{background:rgba(116,198,157,.2);border-color:rgba(116,198,157,.5);color:var(--lime);}
+  .gps-badge.error{background:rgba(230,57,70,.1);border-color:rgba(230,57,70,.3);color:#e63946;}
+  @keyframes gps-blink{0%,100%{opacity:1}50%{opacity:.25}}
+  .gps-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);flex-shrink:0;transition:background .4s;}
+  .gps-badge.active .gps-dot{background:var(--lime);animation:gps-blink 1.4s ease-in-out infinite;}
+  .gps-badge.error .gps-dot{background:#e63946;}
+
+  /* ── Trace canvas ── */
+  #trace-canvas{width:100%;border-radius:14px;border:1.5px solid rgba(255,255,255,.1);background:#0f2419;display:block;}
+
+  /* ── QR overlay ── */
+  .qr-overlay{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);}
+  .qr-card{background:white;border-radius:24px;padding:28px 24px;max-width:360px;width:100%;text-align:center;position:relative;}
+  .qr-card h2{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.06em;color:#1a3a2a;margin-bottom:4px;}
+  .qr-card p{font-size:13px;color:#6b8f78;margin-bottom:16px;}
+  #qr-canvas-wrap{display:flex;align-items:center;justify-content:center;margin:0 auto 16px;min-height:220px;}
+  .qr-info{background:#f0f7f3;border-radius:12px;padding:10px 14px;font-size:12px;color:#2d6a4f;text-align:left;line-height:1.6;}
+  .btn-close-qr{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:#f0f0f0;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#666;}
+
+  /* ── Scanner overlay ── */
+  .scan-overlay{position:fixed;inset:0;z-index:9000;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  #scan-video{width:100%;max-width:400px;border-radius:16px;border:3px solid var(--lime);}
+  .scan-corner{position:absolute;width:40px;height:40px;border-color:var(--lime);border-style:solid;border-width:0;}
+  .scan-result-card{background:rgba(26,58,42,.95);border:2px solid var(--lime);border-radius:20px;padding:20px;max-width:420px;width:calc(100% - 32px);max-height:80vh;overflow-y:auto;}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ SCREEN 1 — SETUP ══════════════ -->
+<div id="screen-setup" class="screen active topo-bg">
+  <div class="flex flex-col h-full px-5 pt-8 pb-6 max-w-md mx-auto w-full">
+
+    <!-- HEADER -->
+    <div class="text-center mb-6">
+      <div class="inline-flex items-center gap-3 mb-2">
+        <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="17" stroke="#74c69d" stroke-width="2"/>
+          <circle cx="18" cy="18" r="3" fill="#74c69d"/>
+          <line x1="18" y1="1" x2="18" y2="9" stroke="#74c69d" stroke-width="2" stroke-linecap="round"/>
+          <line x1="18" y1="27" x2="18" y2="35" stroke="#74c69d" stroke-width="2" stroke-linecap="round"/>
+          <line x1="1" y1="18" x2="9" y2="18" stroke="#74c69d" stroke-width="2" stroke-linecap="round"/>
+          <line x1="27" y1="18" x2="35" y2="18" stroke="#74c69d" stroke-width="2" stroke-linecap="round"/>
+          <polygon points="18,6 21,14 18,12 15,14" fill="#f0a500"/>
+        </svg>
+        <span class="font-display text-white" style="font-size:26px;letter-spacing:.05em;">ORIENTATION</span>
+      </div>
+      <p style="color:rgba(255,255,255,.4);font-size:11px;letter-spacing:.1em;text-transform:uppercase;">Suivi de course en temps réel</p>
+    </div>
+
+    <!-- TABS -->
+    <div class="tab-bar mb-5">
+      <button class="tab-btn active" id="tab-infos" onclick="switchTab('infos')">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:inline;margin-right:5px;vertical-align:-2px;"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="6" x2="7" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="7" cy="4" r=".8" fill="currentColor"/></svg>
+        INFOS
+      </button>
+      <button class="tab-btn" id="tab-projet" onclick="switchTab('projet')">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:inline;margin-right:5px;vertical-align:-2px;"><path d="M2 4h10M2 7h7M2 10h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        PROJET
+      </button>
+    </div>
+
+    <!-- TAB: INFOS -->
+    <div id="panel-infos" class="flex-1 flex flex-col gap-5 tab-panel overflow-y-auto">
+      <div>
+        <label class="block text-xs font-semibold mb-2" style="color:var(--lime);letter-spacing:.12em;text-transform:uppercase;">Prénom du coureur</label>
+        <input id="input-prenom" class="input-field" type="text" placeholder="Ex: Alex, Marie..." maxlength="20" autocomplete="off"/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold mb-3" style="color:var(--lime);letter-spacing:.12em;text-transform:uppercase;">Nombre de postes</label>
+        <div class="flex items-center justify-between gap-4">
+          <button class="stepper-btn" onclick="changePostes(-1)">−</button>
+          <div class="stepper-val" id="nb-postes">8</div>
+          <button class="stepper-btn" onclick="changePostes(1)">+</button>
+        </div>
+        <div class="progress-track mt-4"><div class="progress-fill" id="stepper-bar" style="width:43.75%"></div></div>
+        <div class="flex justify-between mt-1">
+          <span style="font-size:11px;color:rgba(255,255,255,.3);">1 poste</span>
+          <span style="font-size:11px;color:rgba(255,255,255,.3);">16 postes</span>
+        </div>
+      </div>
+      <div id="postes-preview" class="flex flex-wrap gap-2 justify-center py-1"></div>
+    </div>
+
+    <!-- TAB: PROJET -->
+    <div id="panel-projet" class="flex-1 flex-col gap-0 tab-panel overflow-y-auto" style="display:none;">
+      <div class="flex items-center justify-between mb-3">
+        <p style="color:rgba(255,255,255,.5);font-size:12px;line-height:1.4;">Utilise les flèches pour définir<br>l'ordre de passage prévu.</p>
+        <button onclick="resetProjet()" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 12px;color:rgba(255,255,255,.4);font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:.04em;">Réinitialiser</button>
+      </div>
+      <div id="projet-list"></div>
+      <p id="projet-hint" style="text-align:center;color:rgba(255,255,255,.2);font-size:12px;margin-top:8px;display:none;">Définis d'abord le nombre de postes dans l'onglet Infos</p>
+    </div>
+
+    <!-- BOTTOM -->
+    <div class="mt-4 pt-3" style="border-top:1px solid rgba(255,255,255,.07);">
+      <button class="btn-primary" onclick="startCountdown()">
+        <span class="flex items-center justify-center gap-2">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><polygon points="5,3 17,10 5,17"/></svg>
+          LANCER LA COURSE
+        </span>
+      </button>
+      <button onclick="showScreen('pin')" style="background:transparent;border:none;color:rgba(255,255,255,.22);font-family:'DM Sans',sans-serif;font-size:12px;padding:12px 8px 0;cursor:pointer;display:flex;align-items:center;gap:6px;margin:0 auto;letter-spacing:.04em;">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="3" y="6" width="8" height="6" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Espace enseignant
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN 2 — COUNTDOWN ══════════════ -->
+<div id="screen-countdown" class="screen topo-bg" style="align-items:center;justify-content:center;">
+  <div class="text-center">
+    <p class="mb-4 font-semibold tracking-widest uppercase text-sm" style="color:var(--lime);">Prépare-toi !</p>
+    <div id="countdown-display" class="countdown-num" style="color:white;">3</div>
+    <p id="countdown-name" class="mt-4 font-display text-2xl" style="color:rgba(255,255,255,.5);">—</p>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN 3 — RUNNING ══════════════ -->
+<div id="screen-running" class="screen topo-bg" style="flex-direction:column;">
+  <div class="flex flex-col h-full max-w-md mx-auto w-full px-4 py-4" style="overflow:hidden;">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <p class="font-display text-xl" style="color:white;letter-spacing:.05em;" id="run-name">—</p>
+        <div class="badge mt-1">
+          <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#74c69d"/></svg>
+          <span>EN COURSE</span>
+        </div>
+        <p style="font-size:11px;color:rgba(255,255,255,.3);margin-top:4px;letter-spacing:.04em;">Arrête le chrono au retour</p>
+      </div>
+      <div class="text-right">
+        <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:rgba(255,255,255,.4);">Postes</p>
+        <p class="font-display text-2xl" style="color:white;"><span id="postes-done">0</span><span style="color:rgba(255,255,255,.3);">/<span id="postes-total">0</span></span></p>
+      </div>
+    </div>
+
+    <div class="progress-track mb-3"><div class="progress-fill" id="run-progress" style="width:0%"></div></div>
+
+    <!-- GPS STATUS -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div class="gps-badge" id="gps-badge">
+        <span class="gps-dot"></span>
+        <span id="gps-label">GPS en attente…</span>
+      </div>
+      <span id="gps-pts" style="font-size:11px;color:rgba(255,255,255,.25);font-family:'DM Sans',sans-serif;"></span>
+    </div>
+
+    <!-- PLAN STRIP -->
+    <div id="plan-strip-wrap" style="display:none;margin-bottom:10px;">
+      <div class="flex items-center justify-between mb-1">
+        <p style="font-size:10px;font-weight:600;color:rgba(255,255,255,.3);letter-spacing:.1em;text-transform:uppercase;">Mon projet de course</p>
+        <button onclick="togglePlanStrip()" id="plan-toggle" style="background:none;border:none;color:rgba(255,255,255,.25);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;">masquer</button>
+      </div>
+      <div class="plan-strip" id="plan-strip"></div>
+    </div>
+
+    <div class="flex flex-col items-center justify-center py-3 running-indicator" style="background:rgba(255,255,255,.04);border-radius:20px;border:1.5px solid rgba(255,255,255,.08);">
+      <div class="timer-display" id="timer-display">00:00</div>
+      <div class="timer-ms" id="timer-ms">.000</div>
+    </div>
+
+    <div class="flex-1 mt-4 overflow-y-auto">
+      <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color:rgba(255,255,255,.4);">Valider les postes</p>
+      <div id="checkpoint-grid" class="grid gap-2" style="grid-template-columns:repeat(4,1fr);"></div>
+    </div>
+
+    <div class="flex flex-col gap-2 mt-4 pb-2">
+      <button id="btn-stop" onclick="finishRace()" style="background:linear-gradient(135deg,#e63946,#c1121f);color:white;font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:.1em;padding:22px 32px;border-radius:18px;border:none;cursor:pointer;width:100%;box-shadow:0 8px 28px rgba(230,57,70,.45);transition:all .15s;display:flex;align-items:center;justify-content:center;gap:12px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="2" opacity=".6"/><rect x="8" y="8" width="8" height="8" rx="2" fill="white"/></svg>
+        STOP — RETOUR AU DÉPART
+      </button>
+      <button onclick="confirmAbandon()" style="background:transparent;border:none;color:rgba(255,255,255,.25);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px;cursor:pointer;letter-spacing:.05em;text-decoration:underline;">Abandonner la course</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN 4 — RESULTS ══════════════ -->
+<div id="screen-results" class="screen topo-bg" style="overflow-y:auto;">
+  <div class="flex flex-col max-w-md mx-auto w-full px-6 py-10">
+    <div class="text-center mb-6 finish-anim">
+      <div id="result-medal" class="text-6xl mb-3">🏅</div>
+      <h1 class="font-display text-white mb-1" style="font-size:36px;letter-spacing:.05em;" id="result-title">COURSE TERMINÉE</h1>
+      <p class="font-semibold text-lg" style="color:var(--lime);" id="result-name">—</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="result-card text-center finish-anim" style="animation-delay:.1s">
+        <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:rgba(255,255,255,.4);">Temps total</p>
+        <p class="font-display text-white" style="font-size:28px;" id="result-time">—</p>
+      </div>
+      <div class="result-card text-center finish-anim" style="animation-delay:.2s">
+        <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:rgba(255,255,255,.4);">Postes validés</p>
+        <p class="font-display text-white" style="font-size:28px;" id="result-postes">—</p>
+      </div>
+    </div>
+
+    <div class="result-card finish-anim" style="animation-delay:.3s">
+      <p class="text-xs font-semibold uppercase tracking-wider mb-3" style="color:rgba(255,255,255,.4);">Détail des postes</p>
+      <div id="result-laps"></div>
+    </div>
+
+    <!-- TRACE GPS -->
+    <div class="result-card finish-anim" id="trace-card" style="animation-delay:.35s;display:none;">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-semibold uppercase tracking-wider" style="color:rgba(255,255,255,.4);">Trace GPS</p>
+        <span id="trace-pts-label" style="font-size:11px;color:rgba(255,255,255,.25);"></span>
+      </div>
+      <canvas id="trace-canvas" height="200"></canvas>
+    </div>
+
+    <!-- QR CODE BUTTON -->
+    <div class="finish-anim" style="animation-delay:.4s;">
+      <button onclick="showQR()" style="background:linear-gradient(135deg,#1a3a2a,#2d6a4f);color:var(--lime);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.08em;padding:18px 32px;border-radius:16px;border:2px solid rgba(116,198,157,.4);cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;box-shadow:0 6px 20px rgba(116,198,157,.15);transition:all .2s;">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="2" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="2" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="2" y="13" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="4" y="4" width="3" height="3" fill="currentColor"/><rect x="15" y="4" width="3" height="3" fill="currentColor"/><rect x="4" y="15" width="3" height="3" fill="currentColor"/><path d="M13 13h2v2h-2zM17 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 17h2v2h-2z" fill="currentColor"/></svg>
+        GÉNÉRER MON QR CODE
+      </button>
+
+      <button class="btn-primary" onclick="newRace()">
+        <span class="flex items-center justify-center gap-2">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9a6 6 0 1 1 2.1 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 14V9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          NOUVELLE COURSE
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN 5 — PIN ══════════════ -->
+<div id="screen-pin" class="screen topo-bg" style="align-items:center;justify-content:center;">
+  <div class="flex flex-col items-center px-8 w-full max-w-sm">
+    <div class="mb-8 text-center">
+      <div style="width:64px;height:64px;background:rgba(240,165,0,.15);border:2px solid rgba(240,165,0,.3);border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect x="6" y="12" width="16" height="12" rx="3" stroke="#f0a500" stroke-width="2"/>
+          <path d="M9 12V9a5 5 0 0 1 10 0v3" stroke="#f0a500" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="14" cy="18" r="2" fill="#f0a500"/>
+        </svg>
+      </div>
+      <h2 class="font-display text-white mb-1" style="font-size:28px;letter-spacing:.05em;">ESPACE PROF</h2>
+      <p style="color:rgba(255,255,255,.35);font-size:14px;">Entrez le code d'accès</p>
+    </div>
+    <div class="flex gap-4 mb-8">
+      <div class="pin-dot" id="dot-0"></div>
+      <div class="pin-dot" id="dot-1"></div>
+      <div class="pin-dot" id="dot-2"></div>
+      <div class="pin-dot" id="dot-3"></div>
+    </div>
+    <p id="pin-error" style="color:#e63946;font-size:13px;margin-bottom:12px;min-height:18px;text-align:center;"></p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;">
+      <button class="pin-key" onclick="pinPress('1')">1</button>
+      <button class="pin-key" onclick="pinPress('2')">2</button>
+      <button class="pin-key" onclick="pinPress('3')">3</button>
+      <button class="pin-key" onclick="pinPress('4')">4</button>
+      <button class="pin-key" onclick="pinPress('5')">5</button>
+      <button class="pin-key" onclick="pinPress('6')">6</button>
+      <button class="pin-key" onclick="pinPress('7')">7</button>
+      <button class="pin-key" onclick="pinPress('8')">8</button>
+      <button class="pin-key" onclick="pinPress('9')">9</button>
+      <button class="pin-key pin-key-ghost" onclick="pinBack()">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 5L7 10l6 5" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button class="pin-key" onclick="pinPress('0')">0</button>
+      <button class="pin-key pin-key-ghost" onclick="showScreen('setup')">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4l12 12M16 4L4 16" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <p style="color:rgba(255,255,255,.2);font-size:11px;margin-top:20px;">Code par défaut : 1234</p>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN 6 — TABLEAU PROF ══════════════ -->
+<div id="screen-prof" class="screen topo-bg" style="flex-direction:column;overflow-y:auto;">
+  <div class="flex flex-col max-w-lg mx-auto w-full px-4 py-6">
+
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="font-display text-white" style="font-size:28px;letter-spacing:.05em;">TABLEAU DE BORD</h1>
+        <p style="color:rgba(255,255,255,.35);font-size:13px;">Vue enseignant</p>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="startScanner()" style="background:linear-gradient(135deg,rgba(116,198,157,.2),rgba(82,183,136,.15));border:1.5px solid rgba(116,198,157,.4);border-radius:10px;padding:10px 14px;color:var(--lime);font-family:'Bebas Neue',sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;letter-spacing:.05em;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="10" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2.5" y="2.5" width="2" height="2" fill="currentColor"/><rect x="11.5" y="2.5" width="2" height="2" fill="currentColor"/><rect x="2.5" y="11.5" width="2" height="2" fill="currentColor"/><path d="M10 10h2v2h-2zM12 12h2v2h-2zM10 14h2v-2" stroke="currentColor" stroke-width="1.2"/></svg>
+          SCANNER
+        </button>
+        <button onclick="showScreen('setup')" style="background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 14px;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L1 7l6 6M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Élèves
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-2 mb-5" id="prof-stats"></div>
+
+    <div class="flex gap-2 mb-4 overflow-x-auto pb-1" style="scrollbar-width:none;">
+      <button class="filter-btn active" onclick="setFilter('all')" id="filter-all">Tous</button>
+      <button class="filter-btn" onclick="setFilter('complet')" id="filter-complet">✓ Complets</button>
+      <button class="filter-btn" onclick="setFilter('incomplet')" id="filter-incomplet">⚠ Incomplets</button>
+    </div>
+
+    <div class="flex items-center gap-2 mb-4">
+      <p style="color:rgba(255,255,255,.35);font-size:12px;white-space:nowrap;">Trier par :</p>
+      <select id="sort-select" onchange="renderProfTable()" style="background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.12);border-radius:8px;color:rgba(255,255,255,.7);font-size:13px;padding:6px 10px;cursor:pointer;outline:none;font-family:'DM Sans',sans-serif;flex:1;">
+        <option value="date_desc">Plus récent</option>
+        <option value="date_asc">Plus ancien</option>
+        <option value="time_asc">Meilleur temps</option>
+        <option value="time_desc">Temps le plus long</option>
+        <option value="postes_desc">Plus de postes</option>
+        <option value="name_asc">Prénom A→Z</option>
+      </select>
+      <button onclick="confirmClearAll()" style="background:rgba(230,57,70,.12);border:1.5px solid rgba(230,57,70,.25);border-radius:8px;padding:6px 10px;cursor:pointer;color:#e63946;font-size:12px;white-space:nowrap;">🗑 Tout effacer</button>
+    </div>
+
+    <!-- EXPORT PDF -->
+    <button id="btn-export-pdf" onclick="exportPDF()" style="background:linear-gradient(135deg,#f0a500,#c97d00);color:#1a2e1a;font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:.1em;padding:15px 20px;border-radius:14px;border:none;cursor:pointer;width:100%;margin-bottom:18px;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 6px 20px rgba(240,165,0,.3);transition:all .2s;">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 3v9m0 0-3-3m3 3 3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      EXPORTER EN PDF
+    </button>
+
+    <div id="prof-table"></div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────
+let state = { prenom:'', nbPostes:8, validated:[], laps:[], startTime:null, timerInterval:null, isRunning:false, finalTime:0, projet:[] };
+
+// ─── AUDIO ────────────────────────────────────────────
+let audioCtx=null;
+function getAudio(){ if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+function beep(f=880,d=.1,t='sine',v=.4){ try{ const c=getAudio(),o=c.createOscillator(),g=c.createGain(); o.connect(g);g.connect(c.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d);o.start(c.currentTime);o.stop(c.currentTime+d); }catch(e){} }
+function beepStart(){ beep(440,.08);setTimeout(()=>beep(880,.15,'sine',.5),120); }
+function beepCheckpoint(){ beep(1047,.06,'square',.3); }
+function beepCountdown(last){ if(last){beep(880,.08);setTimeout(()=>beep(1175,.12),100);setTimeout(()=>beep(1760,.2),220);}else beep(440,.12,'sine',.35); }
+function beepFinish(){ [0,150,300,500].forEach((d,i)=>setTimeout(()=>beep(440*[1,1.25,1.5,2][i],.15,'sine',.4),d)); }
+
+// ─── TABS & PROJET ────────────────────────────────────
+let currentTab = 'infos';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('panel-infos').style.display  = tab === 'infos'  ? 'flex'  : 'none';
+  document.getElementById('panel-projet').style.display = tab === 'projet' ? 'flex'  : 'none';
+  document.getElementById('tab-infos').classList.toggle('active',  tab === 'infos');
+  document.getElementById('tab-projet').classList.toggle('active', tab === 'projet');
+  if (tab === 'projet') renderProjetList();
+}
+
+function moveProjetItem(idx, dir) {
+  const target = idx + dir;
+  const n = state.projet.length;
+  if (target < 0 || target >= n) return;
+
+  // Swap
+  [state.projet[idx], state.projet[target]] = [state.projet[target], state.projet[idx]];
+  beep(dir < 0 ? 660 : 520, .05, 'square', .18);
+
+  // Animate the moving item before full re-render
+  const items = document.querySelectorAll('.projet-item');
+  if (items[idx]) items[idx].classList.add('moving');
+  setTimeout(() => renderProjetList(target), 140);
+}
+
+function renderProjetList(focusIdx = null) {
+  const n = state.nbPostes;
+  const list = document.getElementById('projet-list');
+  const hint = document.getElementById('projet-hint');
+  if (n < 1) { list.innerHTML = ''; hint.style.display = 'block'; return; }
+  hint.style.display = 'none';
+
+  // Init projet order if empty or stale
+  if (state.projet.length !== n) {
+    state.projet = Array.from({length: n}, (_, i) => i + 1);
+  }
+
+  list.innerHTML = '';
+  state.projet.forEach((num, idx) => {
+    const isFirst = idx === 0;
+    const isLast  = idx === n - 1;
+    const label   = isFirst ? 'Premier poste' : isLast ? 'Dernier poste' : 'Étape ' + (idx + 1);
+
+    const item = document.createElement('div');
+    item.className = 'projet-item';
+    item.dataset.idx = idx;
+    item.innerHTML = `
+      <span class="projet-step">${idx + 1}.</span>
+      <div class="projet-num">${num}</div>
+      <div style="flex:1;">
+        <p style="color:white;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.04em;">Poste ${num}</p>
+        <p style="color:rgba(255,255,255,.3);font-size:11px;">${label}</p>
+      </div>
+      <div class="projet-arrows">
+        <button class="arrow-btn" id="up-${idx}" ${isFirst ? 'disabled' : ''} aria-label="Monter">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 9.5L7 4.5L11 9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="arrow-btn" id="dn-${idx}" ${isLast ? 'disabled' : ''} aria-label="Descendre">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 4.5L7 9.5L11 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>`;
+
+    // Arrow listeners
+    item.querySelector(`#up-${idx}`).addEventListener('click', () => moveProjetItem(idx, -1));
+    item.querySelector(`#dn-${idx}`).addEventListener('click', () => moveProjetItem(idx, +1));
+
+    list.appendChild(item);
+  });
+
+  // Restore focus after re-render so keyboard / screen-reader stays on moved item
+  if (focusIdx !== null) {
+    const dir = focusIdx > 0 && focusIdx < n - 1 ? focusIdx : Math.min(focusIdx, n - 1);
+    const btn = list.querySelector(`#up-${focusIdx}`) || list.querySelector(`#dn-${focusIdx}`);
+    if (btn && !btn.disabled) btn.focus({ preventScroll: true });
+  }
+}
+
+function resetProjet() {
+  state.projet = Array.from({length: state.nbPostes}, (_, i) => i + 1);
+  renderProjetList();
+}
+
+function buildPlanStrip() {
+  const wrap = document.getElementById('plan-strip-wrap');
+  const strip = document.getElementById('plan-strip');
+  if (!state.projet.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  strip.innerHTML = state.projet.map(num =>
+    `<div class="plan-pill" id="pill-${num}">${num}</div>`
+  ).join('');
+}
+
+function updatePlanStrip() {
+  if (!state.projet.length) return;
+  state.projet.forEach((num, idx) => {
+    const pill = document.getElementById('pill-' + num);
+    if (!pill) return;
+    const done = state.validated.includes(num);
+    const isNext = !done && state.projet.find(n => !state.validated.includes(n)) === num;
+    pill.className = 'plan-pill' + (done ? ' done' : isNext ? ' current' : '');
+  });
+}
+
+let planVisible = true;
+function togglePlanStrip() {
+  planVisible = !planVisible;
+  const strip = document.getElementById('plan-strip');
+  const btn = document.getElementById('plan-toggle');
+  strip.style.display = planVisible ? '' : 'none';
+  btn.textContent = planVisible ? 'masquer' : 'afficher';
+}
+
+// ─── SETUP ────────────────────────────────────────────
+function renderPostesPreview(){
+  const c=document.getElementById('postes-preview'); c.innerHTML='';
+  for(let i=1;i<=state.nbPostes;i++){ const d=document.createElement('div'); d.style.cssText="width:28px;height:28px;border-radius:50%;background:rgba(116,198,157,.15);border:1.5px solid rgba(116,198,157,.3);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:13px;color:rgba(116,198,157,.7);"; d.textContent=i; c.appendChild(d); }
+}
+function changePostes(d){ state.nbPostes=Math.min(16,Math.max(1,state.nbPostes+d)); document.getElementById('nb-postes').textContent=state.nbPostes; document.getElementById('stepper-bar').style.width=((state.nbPostes/16)*100)+'%'; renderPostesPreview(); state.projet=[]; if(currentTab==='projet') renderProjetList(); beep(d>0?600:400,.05,'square',.2); }
+
+// ─── SCREENS ──────────────────────────────────────────
+function showScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('screen-'+id).classList.add('active'); }
+
+// ─── COUNTDOWN ────────────────────────────────────────
+function startCountdown(){
+  const p=document.getElementById('input-prenom').value.trim();
+  if(!p){ document.getElementById('input-prenom').focus(); document.getElementById('input-prenom').style.borderColor='#e63946'; setTimeout(()=>document.getElementById('input-prenom').style.borderColor='',1500); return; }
+  state.prenom=p; state.validated=[]; state.laps=[];
+  try{getAudio();}catch(e){}
+  showScreen('countdown');
+  document.getElementById('countdown-name').textContent=p.toUpperCase();
+  let count=3; const D=document.getElementById('countdown-display');
+  const tick=()=>{ D.style.animation='none';D.offsetHeight;D.style.animation=''; D.textContent=count; beepCountdown(count===1); if(count===1){ setTimeout(()=>{ D.style.animation='none';D.offsetHeight;D.style.animation=''; D.textContent='GO!';D.style.color='#74c69d'; beepStart();setTimeout(startRace,700); },900); } else{ count--;setTimeout(tick,1000); } };
+  setTimeout(tick,300);
+}
+
+// ─── RACE ─────────────────────────────────────────────
+function startRace(){
+  showScreen('running');
+  document.getElementById('run-name').textContent=state.prenom.toUpperCase();
+  document.getElementById('postes-total').textContent=state.nbPostes;
+  document.getElementById('postes-done').textContent=0;
+  document.getElementById('run-progress').style.width='0%';
+  buildCheckpointGrid();
+  state.startTime=performance.now(); state.isRunning=true; state.laps=[];
+  state.timerInterval=setInterval(updateTimer,50);
+  buildPlanStrip();
+  startGPS();
+}
+function buildCheckpointGrid(){
+  const g=document.getElementById('checkpoint-grid'); g.innerHTML='';
+  const n=state.nbPostes; g.style.gridTemplateColumns=n<=4?`repeat(${n},1fr)`:n<=9?'repeat(3,1fr)':'repeat(4,1fr)';
+  for(let i=1;i<=n;i++){ const b=document.createElement('button'); b.className='checkpoint-btn'; b.id=`cp-${i}`; b.innerHTML=`<span>${i}</span><span class="checkpoint-label">Poste</span>`; b.onclick=()=>validateCheckpoint(i); g.appendChild(b); }
+}
+function validateCheckpoint(num){
+  if(!state.isRunning) return;
+  if(state.validated.includes(num)){
+    state.validated=state.validated.filter(n=>n!==num);
+    state.laps=state.laps.filter(l=>l.num!==num);
+    const b=document.getElementById(`cp-${num}`);
+    b.classList.remove('validated');
+    b.innerHTML=`<span>${num}</span><span class="checkpoint-label">Poste</span>`;
+    updateRunProgress(); return;
+  }
+  const e=performance.now()-state.startTime;
+  // Capture la position GPS au moment exact de la validation
+  const pos = gpsCurrentPos ? { lat: gpsCurrentPos.lat, lng: gpsCurrentPos.lng, acc: gpsCurrentPos.acc } : null;
+  state.validated.push(num);
+  state.laps.push({ num, time: e, pos });
+  const b=document.getElementById(`cp-${num}`);
+  b.classList.add('validated');
+  // Afficher le badge GPS dans le bouton si position connue
+  const gpsBadgeHtml = pos
+    ? `<span style="font-size:9px;color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;">📍±${pos.acc}m</span>`
+    : `<span style="font-size:9px;color:rgba(255,255,255,.25);font-family:'DM Sans',sans-serif;">📍—</span>`;
+  b.innerHTML=`<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10l5 5 7-8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="checkpoint-label" style="color:rgba(255,255,255,.9)">✓ ${num}</span>${gpsBadgeHtml}`;
+  beepCheckpoint(); updateRunProgress(); updatePlanStrip();
+  if(state.validated.length===state.nbPostes){ const s=document.getElementById('btn-stop'); if(s){ s.style.animation='none'; s.style.animation='stop-pulse 1s ease-in-out infinite'; } }
+}
+function updateRunProgress(){ const p=(state.validated.length/state.nbPostes)*100; document.getElementById('run-progress').style.width=p+'%'; document.getElementById('postes-done').textContent=state.validated.length; }
+function updateTimer(){ if(!state.isRunning) return; const e=performance.now()-state.startTime; document.getElementById('timer-display').textContent=fmt(e); document.getElementById('timer-ms').textContent='.'+String(Math.floor(e%1000)).padStart(3,'0'); }
+function fmt(ms){ const t=Math.floor(ms/1000); return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; }
+function fmtFull(ms){ const m=Math.floor(ms/60000),s=Math.floor((ms%60000)/1000),x=Math.floor(ms%1000); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(x).padStart(3,'0')}`; }
+
+function finishRace(){ if(!state.isRunning) return; state.isRunning=false; state.finalTime=performance.now()-state.startTime; clearInterval(state.timerInterval); stopGPS(); saveRace(); beepFinish(); showResults(); }
+function confirmAbandon(){ if(window.confirm('Abandonner la course ? Le temps ne sera pas enregistré.')){ state.isRunning=false; clearInterval(state.timerInterval); stopGPS(); newRace(); } }
+
+// ─── RESULTS ──────────────────────────────────────────
+function showResults(){
+  showScreen('results');
+  const p=state.validated.length/state.nbPostes;
+  document.getElementById('result-medal').textContent=p===1?'🥇':p>=.75?'🥈':p>=.5?'🥉':'🏃';
+  document.getElementById('result-title').textContent=p===1?'PARCOURS COMPLET !':p>=.5?'BELLE COURSE !':'COURSE TERMINÉE';
+  document.getElementById('result-name').textContent=state.prenom.toUpperCase();
+  document.getElementById('result-time').textContent=fmtFull(state.finalTime);
+  document.getElementById('result-postes').textContent=`${state.validated.length} / ${state.nbPostes}`;
+  const L=document.getElementById('result-laps');
+  if(!state.laps.length){ L.innerHTML='<p style="color:rgba(255,255,255,.3);text-align:center;font-size:14px;">Aucun poste validé</p>'; }
+  else {
+    const sorted=[...state.laps].sort((a,b)=>a.time-b.time); let prev=0;
+    L.innerHTML=sorted.map(l=>{
+      const sp=l.time-prev; prev=l.time;
+      const gpsTag = l.pos
+        ? `<span style="font-size:10px;color:rgba(116,198,157,.6);display:block;margin-top:1px;">📍 ${l.pos.lat.toFixed(5)}, ${l.pos.lng.toFixed(5)} <span style="color:rgba(255,255,255,.2);">±${l.pos.acc}m</span></span>`
+        : `<span style="font-size:10px;color:rgba(255,255,255,.2);display:block;margin-top:1px;">📍 position non disponible</span>`;
+      return `<div class="lap-item" style="flex-direction:column;align-items:stretch;gap:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:rgba(116,198,157,.15);border:1px solid rgba(116,198,157,.3);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--lime);flex-shrink:0;">${l.num}</div>
+            <div>
+              <p style="color:rgba(255,255,255,.8);font-weight:500;">Poste ${l.num}</p>
+              <p style="color:rgba(255,255,255,.35);font-size:12px;">+${fmtFull(sp)}</p>
+            </div>
+          </div>
+          <div class="font-display text-right" style="font-size:18px;color:white;">${fmtFull(l.time)}</div>
+        </div>
+        ${gpsTag}
+      </div>`;
+    }).join('');
+  }
+  // Trace GPS + marqueurs postes
+  const traceCard = document.getElementById('trace-card');
+  const tracePts = gpsTrace;
+  const checkpoints = state.laps.filter(l => l.pos).map(l => ({ num: l.num, lat: l.pos.lat, lng: l.pos.lng }));
+  if (tracePts.length >= 2) {
+    traceCard.style.display = 'block';
+    const cpLabel = checkpoints.length ? ` · ${checkpoints.length} postes` : '';
+    document.getElementById('trace-pts-label').textContent = tracePts.length + ' points' + cpLabel;
+    requestAnimationFrame(() => drawTrace('trace-canvas', tracePts, checkpoints));
+  } else if (checkpoints.length >= 2) {
+    // Pas assez de points de trace mais on a au moins 2 postes géolocalisés
+    traceCard.style.display = 'block';
+    document.getElementById('trace-pts-label').textContent = checkpoints.length + ' postes géolocalisés';
+    requestAnimationFrame(() => drawTrace('trace-canvas', checkpoints, checkpoints));
+  } else {
+    traceCard.style.display = 'none';
+  }
+}
+function newRace(){ showScreen('setup'); document.getElementById('countdown-display').style.color='white'; document.getElementById('countdown-display').textContent='3'; switchTab('infos'); }
+
+// ─── SAVE / LOAD (localStorage) ───────────────────────
+function saveRace(){
+  const record={ id:Date.now(), prenom:state.prenom, nbPostes:state.nbPostes, validated:state.validated.length, finalTime:state.finalTime, laps:state.laps, projet:state.projet.slice(), date:new Date().toISOString(), complete:state.validated.length===state.nbPostes, gpsTrace:encodeTrace(gpsTrace) };
+  const arr=getRaces(); arr.push(record); localStorage.setItem('orientation_races',JSON.stringify(arr));
+}
+function getRaces(){ try{ return JSON.parse(localStorage.getItem('orientation_races')||'[]'); }catch{ return []; } }
+
+// ─── PIN ──────────────────────────────────────────────
+const PIN='1234'; let pin='';
+function pinPress(d){ if(pin.length>=4) return; pin+=d; updateDots(); if(pin.length===4) setTimeout(checkPin,200); }
+function pinBack(){ if(pin.length>0){ pin=pin.slice(0,-1); updateDots(); } }
+function updateDots(){ for(let i=0;i<4;i++) document.getElementById('dot-'+i).classList.toggle('filled',i<pin.length); }
+function checkPin(){
+  if(pin===PIN){ pin=''; updateDots(); document.getElementById('pin-error').textContent=''; openProf(); }
+  else{ document.querySelectorAll('.pin-dot').forEach(d=>{d.classList.remove('filled');d.classList.add('error');}); document.getElementById('pin-error').textContent='Code incorrect, réessayez.'; setTimeout(()=>{ pin=''; updateDots(); document.querySelectorAll('.pin-dot').forEach(d=>d.classList.remove('error')); },900); }
+}
+
+// ─── PROF DASHBOARD ───────────────────────────────────
+let currentFilter='all';
+
+function openProf(){
+  currentFilter='all';
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('filter-all').classList.add('active');
+  document.getElementById('sort-select').value='date_desc';
+  showScreen('prof'); renderProfDashboard();
+}
+function setFilter(f){ currentFilter=f; document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active')); document.getElementById('filter-'+f).classList.add('active'); renderProfTable(); }
+function renderProfDashboard(){ renderProfStats(); renderProfTable(); }
+
+function renderProfStats(){
+  const races=getRaces(), total=races.length, complets=races.filter(r=>r.complete).length;
+  const best=races.filter(r=>r.complete).sort((a,b)=>a.finalTime-b.finalTime)[0];
+  document.getElementById('prof-stats').innerHTML=`
+    <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:14px;padding:14px;text-align:center;"><p class="font-display text-white" style="font-size:32px;">${total}</p><p style="color:rgba(255,255,255,.4);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-top:2px;">Courses</p></div>
+    <div style="background:rgba(116,198,157,.08);border:1.5px solid rgba(116,198,157,.2);border-radius:14px;padding:14px;text-align:center;"><p class="font-display" style="font-size:32px;color:var(--lime);">${complets}</p><p style="color:rgba(255,255,255,.4);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-top:2px;">Complets</p></div>
+    <div style="background:rgba(240,165,0,.08);border:1.5px solid rgba(240,165,0,.2);border-radius:14px;padding:14px;text-align:center;"><p class="font-display" style="font-size:${best?'15px':'32px'};color:var(--gold);line-height:1.15;">${best?fmtFull(best.finalTime):'—'}</p><p style="color:rgba(255,255,255,.4);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-top:2px;">Record</p></div>`;
+}
+
+function renderProfTable(){
+  let races=getRaces(); const sort=document.getElementById('sort-select').value;
+  if(currentFilter==='complet')   races=races.filter(r=>r.complete);
+  if(currentFilter==='incomplet') races=races.filter(r=>!r.complete);
+  const sorts={date_desc:(a,b)=>b.id-a.id,date_asc:(a,b)=>a.id-b.id,time_asc:(a,b)=>a.finalTime-b.finalTime,time_desc:(a,b)=>b.finalTime-a.finalTime,postes_desc:(a,b)=>b.validated-a.validated,name_asc:(a,b)=>a.prenom.localeCompare(b.prenom)};
+  if(sorts[sort]) races.sort(sorts[sort]);
+  const c=document.getElementById('prof-table');
+  if(!races.length){ c.innerHTML='<div style="text-align:center;padding:48px 0;color:rgba(255,255,255,.2);"><div style="font-size:40px;margin-bottom:12px;">🏃</div><p style="font-size:14px;">Aucune course enregistrée</p></div>'; return; }
+  c.innerHTML=races.map((r,i)=>{
+    const pct=Math.round((r.validated/r.nbPostes)*100);
+    const medal=r.complete?'🥇':pct>=75?'🥈':pct>=50?'🥉':'🏃';
+    const dateStr=new Date(r.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    const bar=r.complete?'var(--lime)':pct>=50?'var(--gold)':'#e63946';
+    const projetRow = (r.projet && r.projet.length) ? `<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-size:10px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.07em;flex-shrink:0;">Projet :</span>${r.projet.map((n,i)=>`<span style="font-family:'Bebas Neue',sans-serif;font-size:12px;background:rgba(255,255,255,.07);border-radius:99px;padding:2px 8px;color:rgba(255,255,255,.5);">${i+1}→${n}</span>`).join('')}</div>` : '';
+    return `<div class="race-row" style="animation-delay:${i*.04}s"><div class="flex items-center justify-between mb-2"><div class="flex items-center gap-3"><span style="font-size:22px;">${medal}</span><div><p class="font-display text-white" style="font-size:20px;letter-spacing:.03em;">${r.prenom}</p><p style="color:rgba(255,255,255,.3);font-size:11px;">${dateStr}</p></div></div><div class="text-right"><p class="font-display text-white" style="font-size:20px;">${fmtFull(r.finalTime)}</p><p style="color:rgba(255,255,255,.35);font-size:12px;">${r.validated}/${r.nbPostes} postes</p></div></div><div style="height:4px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:${bar};border-radius:99px;transition:width .5s;"></div></div>${projetRow}</div>`;
+  }).join('');
+}
+
+function confirmClearAll(){ if(window.confirm('Supprimer toutes les courses enregistrées ?')){ localStorage.removeItem('orientation_races'); renderProfDashboard(); } }
+
+
+// ─── EXPORT PDF ───────────────────────────────────────
+function exportPDF(){
+  const races = getRaces();
+  if(!races.length){ alert('Aucune course à exporter.'); return; }
+
+  const btn = document.getElementById('btn-export-pdf');
+  btn.textContent = '⏳ Génération…'; btn.disabled = true;
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const now = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const sorted = [...races].sort((a,b) => b.id - a.id);
+
+    // ════════════════════════════════════════════
+    // HELPERS
+    // ════════════════════════════════════════════
+    const addFooters = () => {
+      const n = doc.internal.getNumberOfPages();
+      for(let p = 1; p <= n; p++){
+        doc.setPage(p);
+        doc.setFillColor(26, 58, 42);
+        doc.rect(0, H - 10, W, 10, 'F');
+        doc.setFontSize(7); doc.setFont('helvetica','normal');
+        doc.setTextColor(116, 198, 157);
+        doc.text("Course d'Orientation - Espace Enseignant", 14, H - 4);
+        doc.text('Page ' + p + ' / ' + n, W - 14, H - 4, { align:'right' });
+      }
+    };
+
+    const sectionTitle = (label, y) => {
+      doc.setFontSize(9); doc.setFont('helvetica','bold');
+      doc.setTextColor(26, 58, 42);
+      doc.text(label, 14, y);
+      doc.setDrawColor(116, 198, 157); doc.setLineWidth(0.35);
+      doc.line(14, y + 2, W - 14, y + 2);
+    };
+
+    // ════════════════════════════════════════════
+    // PAGE 1 — SYNTHÈSE
+    // ════════════════════════════════════════════
+
+    // Header
+    doc.setFillColor(26, 58, 42);
+    doc.rect(0, 0, W, 28, 'F');
+    doc.setDrawColor(116, 198, 157); doc.setLineWidth(0.6);
+    doc.circle(14, 14, 7, 'S');
+    doc.line(14, 7.5, 14, 20.5); doc.line(7.5, 14, 20.5, 14);
+    doc.setFillColor(240, 165, 0);
+    doc.triangle(12.5, 9, 15.5, 9, 14, 7, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(255,255,255);
+    doc.text("COURSE D'ORIENTATION", 25, 12);
+    doc.setFontSize(9); doc.setTextColor(116, 198, 157);
+    doc.text('Rapport des resultats — exporte le ' + now, 25, 20);
+
+    // Stats boxes
+    const complets = races.filter(r=>r.complete).length;
+    const best = races.filter(r=>r.complete).sort((a,b)=>a.finalTime-b.finalTime)[0];
+    const avecProjet = races.filter(r=>r.projet && r.projet.length).length;
+    const statsY = 36;
+    [
+      { label:'COURSES',     value: String(races.length), color:[240,248,244] },
+      { label:'COMPLETS',    value: String(complets),     color:[232,246,238] },
+      { label:'RECORD',      value: best ? fmtFull(best.finalTime) : '—', color:[255,248,230] },
+      { label:'AVEC PROJET', value: String(avecProjet),   color:[235,240,255] },
+    ].forEach((b, i) => {
+      const x = 14 + i * 45.5;
+      doc.setFillColor(...b.color);
+      doc.roundedRect(x, statsY, 40, 16, 2, 2, 'F');
+      doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(26, 58, 42);
+      doc.text(b.value, x + 20, statsY + 8, { align:'center' });
+      doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(100, 130, 110);
+      doc.text(b.label, x + 20, statsY + 13, { align:'center' });
+    });
+
+    // Summary table
+    sectionTitle('TABLEAU DE SYNTHESE', 61);
+    const summaryRows = sorted.map((r, i) => {
+      const pct = Math.round((r.validated / r.nbPostes) * 100);
+      const dateStr = new Date(r.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const projetStr = (r.projet && r.projet.length) ? r.projet.join(' > ') : '—';
+      return [
+        String(i + 1),
+        r.prenom,
+        fmtFull(r.finalTime),
+        r.validated + '/' + r.nbPostes,
+        pct + '%',
+        r.complete ? 'Complet' : 'Incomplet',
+        dateStr,
+      ];
+    });
+
+    doc.autoTable({
+      startY: 65,
+      head: [['#', 'Prenom', 'Temps', 'Postes', '%', 'Statut', 'Date']],
+      body: summaryRows,
+      theme: 'plain',
+      styles: { font:'helvetica', fontSize:8, cellPadding:3, textColor:[40,60,50], lineColor:[220,235,225], lineWidth:0.25 },
+      headStyles: { fillColor:[26,58,42], textColor:[116,198,157], fontStyle:'bold', fontSize:7.5, cellPadding:2.5 },
+      alternateRowStyles: { fillColor:[245,252,248] },
+      columnStyles: {
+        0: { cellWidth:7,  halign:'center' },
+        1: { cellWidth:30, fontStyle:'bold' },
+        2: { cellWidth:27, halign:'center' },
+        3: { cellWidth:16, halign:'center' },
+        4: { cellWidth:12, halign:'center' },
+        5: { cellWidth:21, halign:'center' },
+        6: { cellWidth:33, halign:'center', fontSize:7 },
+      },
+      didDrawCell: (data) => {
+        if(data.section==='body' && data.column.index===5){
+          const ok = data.cell.raw === 'Complet';
+          doc.setFillColor(ok?232:254, ok?246:235, ok?238:235);
+          doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
+          doc.setTextColor(ok?45:180, ok?106:80, ok?79:70);
+          doc.setFontSize(7); doc.setFont('helvetica','bold');
+          doc.text(data.cell.raw, data.cell.x + data.cell.width/2, data.cell.y + data.cell.height/2 + 1, {align:'center'});
+        }
+      },
+    });
+
+    // ════════════════════════════════════════════
+    // PAGE(S) 2+ — DETAIL PAR ELEVE
+    // ════════════════════════════════════════════
+    doc.addPage();
+
+    // Page header
+    doc.setFillColor(26, 58, 42);
+    doc.rect(0, 0, W, 18, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
+    doc.text("ANALYSE DETAILLEE DES PARCOURS", 14, 11);
+    doc.setFontSize(8); doc.setTextColor(116, 198, 157);
+    doc.text('Projet prevu vs ordre de passage reel', W - 14, 11, { align:'right' });
+
+    let curY = 26;
+    const cardMargin = 14;
+    const cardW = W - cardMargin * 2;
+
+    sorted.forEach((r, ri) => {
+      const pct = Math.round((r.validated / r.nbPostes) * 100);
+      const hasProjet = r.projet && r.projet.length > 0;
+      const realOrder = r.laps ? [...r.laps].sort((a,b) => a.time - b.time) : [];
+
+      // Estimate card height
+      const maxRows = Math.max(hasProjet ? r.projet.length : 0, realOrder.length, 1);
+      const cardH = 14 + maxRows * 7 + 8;
+
+      // Page break
+      if(curY + cardH > H - 14){
+        doc.addPage();
+        doc.setFillColor(26, 58, 42);
+        doc.rect(0, 0, W, 18, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
+        doc.text("ANALYSE DETAILLEE DES PARCOURS (suite)", 14, 11);
+        curY = 26;
+      }
+
+      // Card background
+      doc.setFillColor(248, 252, 249);
+      doc.roundedRect(cardMargin, curY, cardW, cardH, 3, 3, 'F');
+      doc.setDrawColor(200, 230, 210); doc.setLineWidth(0.3);
+      doc.roundedRect(cardMargin, curY, cardW, cardH, 3, 3, 'S');
+
+      // Card header stripe
+      doc.setFillColor(26, 58, 42);
+      doc.roundedRect(cardMargin, curY, cardW, 12, 3, 3, 'F');
+      doc.rect(cardMargin, curY + 6, cardW, 6, 'F'); // bottom of rounded to flat
+
+      // Medal + name
+      const statusColor = r.complete ? [116,198,157] : pct>=50 ? [240,165,0] : [230,57,70];
+      doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
+      const medal = r.complete ? '[Or]' : pct>=75 ? '[Argent]' : pct>=50 ? '[Bronze]' : '';
+      doc.text((ri+1) + '. ' + r.prenom.toUpperCase(), cardMargin + 3, curY + 8);
+
+      // Time badge
+      doc.setFontSize(10); doc.setTextColor(...statusColor);
+      doc.text(fmtFull(r.finalTime), cardMargin + cardW - 3, curY + 8, { align:'right' });
+
+      // Status pill area
+      doc.setFontSize(7.5); doc.setTextColor(...statusColor);
+      const statusLabel = r.complete ? 'COMPLET' : pct + '% — ' + r.validated + '/' + r.nbPostes + ' postes';
+      doc.text(statusLabel, cardMargin + 3, curY + 8 + 5.5);
+
+      // Date
+      const dateStr = new Date(r.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      doc.setFontSize(7); doc.setTextColor(180,200,185);
+      doc.text(dateStr, cardMargin + cardW - 3, curY + 8 + 5.5, { align:'right' });
+
+      // Columns header
+      const colY = curY + 18;
+      const col1X = cardMargin + 3;
+      const col2X = cardMargin + 3 + cardW * 0.08;
+      const col3X = cardMargin + 3 + cardW * 0.42;
+      const col4X = cardMargin + 3 + cardW * 0.58;
+      const col5X = cardMargin + 3 + cardW * 0.72;
+      const col6X = cardMargin + 3 + cardW * 0.86;
+
+      doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+      doc.setTextColor(100, 140, 110);
+      doc.text('Etape', col1X, colY);
+      doc.text('Projet prevu', col2X, colY);
+      doc.text('Poste reel', col3X, colY);
+      doc.text('Temps', col4X, colY);
+      doc.text('Split', col5X, colY);
+      doc.text('Ecart projet', col6X, colY);
+
+      // Separator line
+      doc.setDrawColor(210, 230, 215); doc.setLineWidth(0.2);
+      doc.line(col1X, colY + 1.5, cardMargin + cardW - 3, colY + 1.5);
+
+      // Rows
+      const maxR = Math.max(hasProjet ? r.projet.length : 0, realOrder.length);
+      let prevTime = 0;
+      for(let step = 0; step < maxR; step++){
+        const rowY = colY + 5 + step * 7;
+        const projetNum  = hasProjet ? r.projet[step] : null;
+        const realLap    = realOrder[step] || null;
+        const split      = realLap ? realLap.time - prevTime : null;
+        if(realLap) prevTime = realLap.time;
+
+        // Row bg alternating
+        if(step % 2 === 0){
+          doc.setFillColor(240, 248, 243);
+          doc.rect(col1X - 1, rowY - 4.5, cardW - 4, 6.5, 'F');
+        }
+
+        doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+
+        // Step number
+        doc.setTextColor(150, 170, 155);
+        doc.text(String(step + 1), col1X, rowY);
+
+        // Projet prevu bubble
+        if(projetNum !== null){
+          doc.setFillColor(26, 58, 42);
+          doc.roundedRect(col2X, rowY - 4, 9, 5.5, 1, 1, 'F');
+          doc.setTextColor(116, 198, 157);
+          doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+          doc.text(String(projetNum), col2X + 4.5, rowY - 0.2, { align:'center' });
+        } else {
+          doc.setTextColor(200, 215, 205);
+          doc.text('—', col2X + 4.5, rowY, { align:'center' });
+        }
+
+        // Poste reel
+        if(realLap){
+          const matched = projetNum !== null && projetNum === realLap.num;
+          if(matched){
+            doc.setFillColor(116, 198, 157);
+          } else {
+            doc.setFillColor(240, 100, 80);
+          }
+          doc.roundedRect(col3X, rowY - 4, 9, 5.5, 1, 1, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+          doc.text(String(realLap.num), col3X + 4.5, rowY - 0.2, { align:'center' });
+
+          // Temps total
+          doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+          doc.setTextColor(50, 80, 60);
+          doc.text(fmtFull(realLap.time), col4X, rowY);
+
+          // Split
+          doc.setTextColor(100, 140, 110);
+          doc.text('+' + fmtFull(split), col5X, rowY);
+
+          // Ecart projet
+          if(projetNum !== null){
+            doc.setFont('helvetica','bold'); doc.setFontSize(7);
+            if(matched){
+              doc.setTextColor(60, 140, 90);
+              doc.text('OK', col6X, rowY);
+            } else {
+              doc.setTextColor(200, 70, 60);
+              doc.text('Prevu ' + projetNum, col6X, rowY);
+            }
+          }
+        } else {
+          doc.setTextColor(200, 215, 205); doc.setFontSize(7.5);
+          doc.text('non effectue', col3X, rowY);
+        }
+      }
+
+      // If no laps and no projet
+      if(maxR === 0){
+        doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(180, 200, 185);
+        doc.text('Aucun poste valide — pas de projet enregistre', col2X, colY + 6);
+      }
+
+      // Compliance score
+      if(hasProjet && realOrder.length > 0){
+        const maxComp = Math.min(r.projet.length, realOrder.length);
+        let matches = 0;
+        for(let s=0; s<maxComp; s++){
+          if(r.projet[s] === realOrder[s].num) matches++;
+        }
+        const score = Math.round((matches / maxComp) * 100);
+        const scoreY = curY + cardH - 4;
+        doc.setFontSize(7); doc.setFont('helvetica','bold');
+        const scoreColor = score >= 80 ? [45,106,79] : score >= 50 ? [180,120,20] : [180,60,50];
+        doc.setTextColor(...scoreColor);
+        doc.text('Respect du projet : ' + score + '% (' + matches + '/' + maxComp + ' postes dans lordre prevu)', cardMargin + 3, scoreY);
+      }
+
+      curY += cardH + 6;
+    });
+
+    // ── FOOTERS ──
+    addFooters();
+
+    // ── SAVE ──
+    const filename = 'resultats_orientation_' + new Date().toISOString().slice(0,10) + '.pdf';
+    doc.save(filename);
+
+  } catch(e) {
+    alert('Erreur lors de la generation PDF : ' + e.message);
+    console.error(e);
+  } finally {
+    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 3v9m0 0-3-3m3 3 3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> EXPORTER EN PDF';
+    btn.disabled = false;
+  }
+}
+
+// ─── GPS TRACKING ─────────────────────────────────────
+let gpsWatchId = null;
+let gpsTrace = [];       // [{lat, lng, t}]  t = ms from startTime
+let gpsLastSaved = 0;
+let gpsCurrentPos = null; // dernière position connue (mise à jour en continu)
+const GPS_INTERVAL = 5000; // save 1 point every 5s
+
+function startGPS() {
+  gpsTrace = []; gpsLastSaved = 0; gpsCurrentPos = null;
+  const badge = document.getElementById('gps-badge');
+  const label = document.getElementById('gps-label');
+  if (!navigator.geolocation) {
+    badge.className = 'gps-badge error';
+    label.textContent = 'GPS non disponible';
+    return;
+  }
+  badge.className = 'gps-badge'; label.textContent = 'GPS en attente…';
+  gpsWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      badge.className = 'gps-badge active';
+      const acc = Math.round(pos.coords.accuracy);
+      label.textContent = `GPS actif — ±${acc}m`;
+      // Toujours mémoriser la position courante
+      gpsCurrentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc };
+      const now = performance.now() - state.startTime;
+      if (now - gpsLastSaved >= GPS_INTERVAL || gpsTrace.length === 0) {
+        gpsTrace.push({ lat: pos.coords.latitude, lng: pos.coords.longitude, t: Math.round(now) });
+        gpsLastSaved = now;
+        const pts = document.getElementById('gps-pts');
+        if (pts) pts.textContent = gpsTrace.length + ' pts';
+      }
+    },
+    err => {
+      badge.className = 'gps-badge error';
+      label.textContent = err.code === 1 ? 'GPS refusé' : 'Signal GPS faible';
+    },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+  );
+}
+
+function stopGPS() {
+  if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+}
+
+// Encode trace compacte pour QR (delta encoding, 5 décimales)
+function encodeTrace(pts) {
+  if (!pts || !pts.length) return '';
+  // Keep max 80 points (QR size limit)
+  let sampled = pts;
+  if (pts.length > 80) {
+    const step = pts.length / 80;
+    sampled = Array.from({length: 80}, (_, i) => pts[Math.min(Math.floor(i * step), pts.length - 1)]);
+  }
+  const ref = sampled[0];
+  const refLat = Math.round(ref.lat * 1e5);
+  const refLng = Math.round(ref.lng * 1e5);
+  let prev = [refLat, refLng];
+  const deltas = sampled.slice(1).map(p => {
+    const cLat = Math.round(p.lat * 1e5), cLng = Math.round(p.lng * 1e5);
+    const d = [cLat - prev[0], cLng - prev[1]];
+    prev = [cLat, cLng];
+    return d;
+  });
+  return JSON.stringify({ r: [refLat, refLng], d: deltas });
+}
+
+function decodeTrace(enc) {
+  if (!enc) return [];
+  try {
+    const obj = JSON.parse(enc);
+    const pts = [{ lat: obj.r[0] / 1e5, lng: obj.r[1] / 1e5 }];
+    let cur = [...obj.r];
+    obj.d.forEach(([dlat, dlng]) => { cur[0] += dlat; cur[1] += dlng; pts.push({ lat: cur[0]/1e5, lng: cur[1]/1e5 }); });
+    return pts;
+  } catch { return []; }
+}
+
+// ─── TRACE CANVAS ──────────────────────────────────────
+function drawTrace(canvasId, pts, checkpoints) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !pts || pts.length < 2) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 300;
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = 200 * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const cw = W, ch = 200;
+
+  // Calcul des bornes — inclure les points de postes dans les bornes
+  const allPts = [...pts, ...(checkpoints || []).filter(c => c.lat && c.lng)];
+  const lats = allPts.map(p => p.lat), lngs = allPts.map(p => p.lng);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const pad = 28;
+  const scaleX = (maxLng - minLng) < 1e-9 ? 1 : (cw - pad*2) / (maxLng - minLng);
+  const scaleY = (maxLat - minLat) < 1e-9 ? 1 : (ch - pad*2) / (maxLat - minLat);
+
+  const toX = lng => pad + (lng - minLng) * scaleX;
+  const toY = lat => ch - pad - (lat - minLat) * scaleY;
+
+  // Fond
+  ctx.fillStyle = '#0f2419'; ctx.fillRect(0, 0, cw, ch);
+
+  // Grille légère
+  ctx.strokeStyle = 'rgba(116,198,157,.07)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const x = pad + i * (cw - pad*2) / 4;
+    const y = pad + i * (ch - pad*2) / 4;
+    ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, ch - pad); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(cw - pad, y); ctx.stroke();
+  }
+
+  // Trace ombre
+  ctx.shadowColor = 'rgba(116,198,157,.35)'; ctx.shadowBlur = 8;
+  ctx.strokeStyle = 'rgba(116,198,157,.25)'; ctx.lineWidth = 5;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  pts.forEach((p, i) => i === 0 ? ctx.moveTo(toX(p.lng), toY(p.lat)) : ctx.lineTo(toX(p.lng), toY(p.lat)));
+  ctx.stroke();
+
+  // Trace principale (dégradé vert → or)
+  ctx.shadowBlur = 0;
+  const grad = ctx.createLinearGradient(toX(pts[0].lng), toY(pts[0].lat), toX(pts[pts.length-1].lng), toY(pts[pts.length-1].lat));
+  grad.addColorStop(0, '#52b788'); grad.addColorStop(1, '#f0a500');
+  ctx.strokeStyle = grad; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  pts.forEach((p, i) => i === 0 ? ctx.moveTo(toX(p.lng), toY(p.lat)) : ctx.lineTo(toX(p.lng), toY(p.lat)));
+  ctx.stroke();
+
+  // ── Marqueurs de postes validés ──
+  if (checkpoints && checkpoints.length) {
+    checkpoints.forEach(cp => {
+      if (!cp.lat || !cp.lng) return;
+      const x = toX(cp.lng), y = toY(cp.lat);
+      // Halo
+      ctx.shadowColor = 'rgba(240,165,0,.6)'; ctx.shadowBlur = 12;
+      ctx.fillStyle = '#f0a500';
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // Contour blanc
+      ctx.strokeStyle = 'white'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.stroke();
+      // Numéro du poste
+      ctx.fillStyle = '#1a3a2a';
+      ctx.font = `bold ${cp.num >= 10 ? 7 : 9}px DM Sans, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(cp.num), x, y + 0.5);
+    });
+  }
+
+  ctx.textBaseline = 'alphabetic';
+
+  // Point de départ (vert)
+  ctx.fillStyle = '#74c69d'; ctx.shadowColor = '#74c69d'; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.arc(toX(pts[0].lng), toY(pts[0].lat), 5, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Point d'arrivée (orange)
+  ctx.fillStyle = '#f0a500'; ctx.shadowColor = '#f0a500'; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.arc(toX(pts[pts.length-1].lng), toY(pts[pts.length-1].lat), 5, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Légende
+  ctx.font = 'bold 9px DM Sans, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = 'rgba(116,198,157,.7)';
+  ctx.fillText('▲ Départ', toX(pts[0].lng) + 7, toY(pts[0].lat) + 4);
+  ctx.fillStyle = 'rgba(240,165,0,.8)';
+  ctx.fillText('■ Retour', toX(pts[pts.length-1].lng) + 7, toY(pts[pts.length-1].lat) + 4);
+}
+
+// ─── QR CODE ──────────────────────────────────────────
+function buildQRPayload() {
+  // Laps : [num, timeMs, lat|null, lng|null, acc|null]
+  const laps = state.laps.map(l => l.pos
+    ? [l.num, Math.round(l.time), Math.round(l.pos.lat*1e5), Math.round(l.pos.lng*1e5), l.pos.acc]
+    : [l.num, Math.round(l.time)]
+  );
+  const payload = {
+    v: 1,
+    n: state.prenom,
+    t: Math.round(state.finalTime),
+    nb: state.nbPostes,
+    vl: state.validated.length,
+    l: laps,
+    pr: state.projet.slice(),
+    d: new Date().toISOString().slice(0, 16),
+    g: encodeTrace(gpsTrace)
+  };
+  return JSON.stringify(payload);
+}
+
+function showQR() {
+  const overlay = document.getElementById('qr-overlay');
+  const wrap = document.getElementById('qr-canvas-wrap');
+  const info = document.getElementById('qr-info');
+  overlay.style.display = 'flex';
+  wrap.innerHTML = '';
+
+  const payload = buildQRPayload();
+  try {
+    new QRCode(wrap, {
+      text: payload,
+      width: 220, height: 220,
+      colorDark: '#1a3a2a', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch(e) {
+    wrap.innerHTML = '<p style="color:#e63946;font-size:13px;">Erreur QR : données trop volumineuses.<br>Essaie avec moins de 12 postes.</p>';
+  }
+
+  const dateStr = new Date().toLocaleString('fr-FR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  info.innerHTML = `
+    <strong style="display:block;margin-bottom:4px;">👤 ${state.prenom}</strong>
+    ⏱ Temps : <strong>${fmtFull(state.finalTime)}</strong><br>
+    🏁 Postes : <strong>${state.validated.length} / ${state.nbPostes}</strong><br>
+    📍 Points GPS : <strong>${gpsTrace.length}</strong><br>
+    🗓 ${dateStr}`;
+}
+
+function closeQR() { document.getElementById('qr-overlay').style.display = 'none'; }
+
+// ─── SCANNER ──────────────────────────────────────────
+let scanInterval = null;
+let scanStream = null;
+let scanActive = false;
+
+async function startScanner() {
+  // Nettoyage d'un scan précédent
+  stopScanLoop();
+
+  const overlay = document.getElementById('scan-overlay');
+  const result  = document.getElementById('scan-result');
+  const video   = document.getElementById('scan-video');
+  const hint    = document.getElementById('scan-hint');
+
+  result.style.display = 'none';
+  result.innerHTML = '';
+  if (hint) hint.style.display = 'block';
+  overlay.style.display = 'flex';
+  scanActive = true;
+
+  // Vérifier que jsQR est bien chargé
+  if (typeof jsQR === 'undefined') {
+    showScanError('La librairie jsQR n\'est pas chargée.<br>Vérifie ta connexion internet et recharge la page.');
+    return;
+  }
+
+  // Vérifier que la caméra est disponible
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showScanError('La caméra n\'est pas accessible depuis ce navigateur.<br>Assure-toi d\'être en HTTPS.');
+    return;
+  }
+
+  try {
+    // Couper le stream précédent si existant
+    if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+
+    scanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+
+    video.srcObject = scanStream;
+
+    // Attendre que la vidéo soit réellement prête avant de scanner
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = (e) => reject(e);
+      setTimeout(reject, 8000); // timeout 8s
+    });
+
+    await video.play();
+
+    // Démarrer la boucle de scan
+    startScanLoop(video);
+
+  } catch(e) {
+    const msg = e.name === 'NotAllowedError'
+      ? 'Permission caméra refusée.<br>Autorise l\'accès à la caméra dans les réglages du navigateur.'
+      : e.name === 'NotFoundError'
+      ? 'Aucune caméra détectée sur cet appareil.'
+      : e.name === 'NotReadableError'
+      ? 'Caméra déjà utilisée par une autre appli.'
+      : 'Caméra inaccessible.<br><small style="opacity:.7">' + e.message + '</small>';
+    showScanError(msg);
+  }
+}
+
+function startScanLoop(video) {
+  stopScanLoop(); // ne jamais doubler
+  scanInterval = setInterval(() => {
+    if (!scanActive) { stopScanLoop(); return; }
+    // Vérifier que la vidéo diffuse bien des frames
+    if (!video.videoWidth || video.readyState < 2) return;
+    scanFrame(video);
+  }, 200);
+}
+
+function stopScanLoop() {
+  if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
+}
+
+function scanFrame(video) {
+  const canvas = document.getElementById('scan-canvas');
+  if (!canvas) return;
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0);
+  let img;
+  try { img = ctx.getImageData(0, 0, canvas.width, canvas.height); }
+  catch(e) { return; }
+
+  // attemptBoth = détecte QR sombres ET clairs (inclut nos QR blanc sur blanc)
+  const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+  if (code && code.data) {
+    stopScanLoop();
+    // Flash visuel de succès
+    const video = document.getElementById('scan-video');
+    if (video) { video.style.borderColor = '#74c69d'; video.style.boxShadow = '0 0 20px rgba(116,198,157,.6)'; }
+    setTimeout(() => renderScanResult(code.data), 150);
+  }
+}
+
+function stopScanner() {
+  scanActive = false;
+  stopScanLoop();
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  const video = document.getElementById('scan-video');
+  if (video) { video.srcObject = null; video.style.borderColor = ''; video.style.boxShadow = ''; }
+  document.getElementById('scan-overlay').style.display = 'none';
+}
+
+function showScanError(msg) {
+  const result = document.getElementById('scan-result');
+  if (!result) return;
+  result.style.display = 'block';
+  result.innerHTML = `
+    <div style="text-align:center;padding:20px;">
+      <div style="font-size:36px;margin-bottom:12px;">📵</div>
+      <p style="color:#e63946;font-size:14px;line-height:1.6;margin-bottom:16px;">${msg}</p>
+      <button onclick="startScanner()"
+        style="background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:12px;
+               color:rgba(255,255,255,.7);font-size:14px;padding:12px 24px;cursor:pointer;width:100%;">
+        🔄 Réessayer
+      </button>
+    </div>`;
+}
+
+function renderScanResult(raw) {
+  const result = document.getElementById('scan-result');
+  result.style.display = 'block';
+  const hint = document.getElementById('scan-hint');
+  if (hint) hint.style.display = 'none';
+  // Réinitialiser le style de la vidéo
+  const video = document.getElementById('scan-video');
+  if (video) { video.style.borderColor = ''; video.style.boxShadow = ''; }
+  try {
+    const r = JSON.parse(raw);
+    if (r.v !== 1 || !r.n) throw new Error('Format invalide');
+
+    const pct = Math.round((r.vl / r.nb) * 100);
+    const medal = r.vl === r.nb ? '🥇' : pct >= 75 ? '🥈' : pct >= 50 ? '🥉' : '🏃';
+    const color = r.vl === r.nb ? '#74c69d' : pct >= 50 ? '#f0a500' : '#e63946';
+    const dateStr = r.d ? r.d.replace('T', ' ') : '—';
+
+    const sorted = (r.l || []).sort((a,b) => a[1] - b[1]);
+    let prev = 0;
+    // Décoder les positions des postes (format [num, t, lat*1e5, lng*1e5, acc] ou [num, t])
+    const cpPositions = sorted
+      .filter(lap => lap.length >= 4)
+      .map(lap => ({ num: lap[0], lat: lap[2]/1e5, lng: lap[3]/1e5 }));
+
+    const lapsHtml = sorted.map(lap => {
+      const [num, t, latE5, lngE5, acc] = lap;
+      const sp = t - prev; prev = t;
+      const gpsTag = latE5 != null
+        ? `<span style="font-size:10px;color:rgba(116,198,157,.55);display:block;margin-top:2px;">📍 ${(latE5/1e5).toFixed(5)}, ${(lngE5/1e5).toFixed(5)}${acc ? ' <span style="opacity:.5">±'+acc+'m</span>' : ''}</span>`
+        : `<span style="font-size:10px;color:rgba(255,255,255,.2);display:block;margin-top:2px;">📍 position non disponible</span>`;
+      return `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.07);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="display:flex;align-items:center;gap:8px;">
+            <span style="width:24px;height:24px;border-radius:50%;background:rgba(116,198,157,.15);border:1px solid rgba(116,198,157,.3);display:inline-flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:12px;color:var(--lime);">${num}</span>
+            <span style="color:rgba(255,255,255,.7);font-size:13px;">Poste ${num} <span style="color:rgba(255,255,255,.3);font-size:11px;">+${fmtFull(sp)}</span></span>
+          </span>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:white;">${fmtFull(t)}</span>
+        </div>
+        ${gpsTag}
+      </div>`;
+    }).join('');
+
+    const projetHtml = r.pr && r.pr.length ? `<div style="margin-top:10px;"><p style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Projet de course</p><div style="display:flex;flex-wrap:wrap;gap:4px;">${r.pr.map((n,i)=>`<span style="font-family:'Bebas Neue',sans-serif;font-size:12px;background:rgba(255,255,255,.08);border-radius:99px;padding:2px 8px;color:rgba(255,255,255,.5);">${i+1}→${n}</span>`).join('')}</div></div>` : '';
+
+    // GPS trace
+    const tracePts = decodeTrace(r.g);
+    const traceHtml = tracePts.length >= 2
+      ? `<div style="margin-top:12px;"><p style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Trace GPS (${tracePts.length} pts)</p><canvas id="scan-trace-canvas" style="width:100%;border-radius:10px;background:#0f2419;display:block;" height="160"></canvas></div>`
+      : `<p style="font-size:11px;color:rgba(255,255,255,.2);margin-top:8px;">Aucune trace GPS</p>`;
+
+    result.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span style="font-size:32px;">${medal}</span>
+        <div>
+          <p style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.04em;color:white;line-height:1;">${r.n.toUpperCase()}</p>
+          <p style="font-size:11px;color:rgba(255,255,255,.35);">📅 ${dateStr}</p>
+        </div>
+        <div style="margin-left:auto;text-align:right;">
+          <p style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${color};">${fmtFull(r.t)}</p>
+          <p style="font-size:12px;color:rgba(255,255,255,.4);">${r.vl}/${r.nb} postes</p>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">${lapsHtml}</div>
+      ${projetHtml}
+      ${traceHtml}
+      <button onclick="saveScannedRace(${JSON.stringify(raw).replace(/</g,'\\u003c')})" style="margin-top:14px;background:linear-gradient(135deg,var(--lime),#52b788);color:#1a3a2a;font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:.08em;padding:14px;border-radius:12px;border:none;cursor:pointer;width:100%;">💾 ENREGISTRER CETTE COURSE</button>
+      <button onclick="document.getElementById('scan-result').style.display='none'; startScanner();" style="margin-top:8px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.12);border-radius:12px;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:13px;padding:12px;cursor:pointer;width:100%;">📷 Scanner un autre QR</button>`;
+
+    // Draw trace after DOM update
+    if (tracePts.length >= 2) {
+      requestAnimationFrame(() => drawTrace('scan-trace-canvas', tracePts, cpPositions));
+    } else if (cpPositions.length >= 2) {
+      requestAnimationFrame(() => drawTrace('scan-trace-canvas', cpPositions, cpPositions));
+    }
+
+    // Save scanned to localStorage automatically
+    saveScannedRaceData(r);
+
+  } catch(e) {
+    result.innerHTML = `<p style="color:#e63946;text-align:center;padding:16px;">QR non reconnu.<br><small>${e.message}</small></p>
+      <button onclick="startScanner()" style="background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.12);border-radius:12px;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:13px;padding:12px;cursor:pointer;width:100%;margin-top:8px;">🔄 Réessayer</button>`;
+  }
+}
+
+function saveScannedRace(raw) {
+  try {
+    const r = JSON.parse(raw);
+    saveScannedRaceData(r);
+    alert('✅ Course de ' + r.n + ' enregistrée !');
+    stopScanner();
+    renderProfDashboard();
+  } catch(e) { alert('Erreur : ' + e.message); }
+}
+
+function saveScannedRaceData(r) {
+  const record = {
+    id: Date.now(), prenom: r.n, nbPostes: r.nb,
+    validated: r.vl, finalTime: r.t,
+    laps: (r.l || []).map(lap => ({
+      num: lap[0], time: lap[1],
+      pos: lap.length >= 4 ? { lat: lap[2]/1e5, lng: lap[3]/1e5, acc: lap[4] || null } : null
+    })),
+    projet: r.pr || [], date: r.d ? r.d + ':00Z' : new Date().toISOString(),
+    complete: r.vl === r.nb, gpsTrace: r.g || '',
+    source: 'qr'
+  };
+  const arr = getRaces();
+  // Éviter les doublons (même prénom + même temps)
+  const dup = arr.find(x => x.prenom === record.prenom && x.finalTime === record.finalTime);
+  if (!dup) { arr.push(record); localStorage.setItem('orientation_races', JSON.stringify(arr)); }
+}
+
+// ─── INIT ─────────────────────────────────────────────
+renderPostesPreview();
+</script>
+
+<!-- ══════════════ QR OVERLAY ══════════════ -->
+<div id="qr-overlay" class="qr-overlay" style="display:none;" onclick="if(event.target===this)closeQR()">
+  <div class="qr-card">
+    <button class="btn-close-qr" onclick="closeQR()">×</button>
+    <h2>🧭 MON QR CODE</h2>
+    <p>Montre ce code à ton enseignant pour transmettre tes résultats</p>
+    <div id="qr-canvas-wrap"></div>
+    <div class="qr-info" id="qr-info"></div>
+  </div>
+</div>
+
+<!-- ══════════════ SCANNER OVERLAY ══════════════ -->
+<div id="scan-overlay" class="scan-overlay" style="display:none;">
+  <div style="position:relative;width:100%;max-width:400px;margin-bottom:16px;">
+    <video id="scan-video" autoplay playsinline muted></video>
+    <canvas id="scan-canvas" style="display:none;"></canvas>
+    <!-- viseurs -->
+    <div style="position:absolute;inset:0;pointer-events:none;">
+      <div class="scan-corner" style="top:8px;left:8px;border-top-width:4px;border-left-width:4px;border-top-left-radius:8px;"></div>
+      <div class="scan-corner" style="top:8px;right:8px;border-top-width:4px;border-right-width:4px;border-top-right-radius:8px;"></div>
+      <div class="scan-corner" style="bottom:8px;left:8px;border-bottom-width:4px;border-left-width:4px;border-bottom-left-radius:8px;"></div>
+      <div class="scan-corner" style="bottom:8px;right:8px;border-bottom-width:4px;border-right-width:4px;border-bottom-right-radius:8px;"></div>
+      <div style="position:absolute;top:50%;left:8px;right:8px;height:2px;background:linear-gradient(90deg,transparent,var(--lime),transparent);animation:scan-line 2s ease-in-out infinite;"></div>
+    </div>
+  </div>
+  <p id="scan-hint" style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:12px;">Pointe la caméra vers le QR code de l'élève</p>
+  <div id="scan-result" style="display:none;" class="scan-result-card"></div>
+  <button onclick="stopScanner()" style="margin-top:14px;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:12px;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 24px;cursor:pointer;">Fermer le scanner</button>
+</div>
+
+<style>@keyframes scan-line{0%{top:10%}50%{top:90%}100%{top:10%}}</style>
+<div id="pwa-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:linear-gradient(135deg,#1a3a2a,#2d6a4f);border-top:1.5px solid rgba(116,198,157,0.3);padding:14px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 -4px 24px rgba(0,0,0,0.4);">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <img src="./icon-192.png" style="width:40px;height:40px;border-radius:10px;">
+    <div>
+      <p style="color:white;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.05em;line-height:1.1;">INSTALLER L'APPLICATION</p>
+      <p style="color:rgba(255,255,255,0.5);font-size:11px;font-family:'DM Sans',sans-serif;">Accès rapide, fonctionne hors-ligne</p>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-shrink:0;">
+    <button id="pwa-dismiss" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(255,255,255,0.5);font-family:'DM Sans',sans-serif;font-size:12px;padding:8px 12px;cursor:pointer;">Plus tard</button>
+    <button id="pwa-install" style="background:linear-gradient(135deg,#74c69d,#52b788);border:none;border-radius:8px;color:#1a3a2a;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em;padding:8px 16px;cursor:pointer;">INSTALLER</button>
+  </div>
+</div>
+
+<script>
+// ═══ SERVICE WORKER ═══
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.warn('SW failed:', err));
+  });
+}
+
+// ═══ PWA INSTALL PROMPT ═══
+let deferredPrompt = null;
+const banner = document.getElementById('pwa-banner');
+const btnInstall = document.getElementById('pwa-install');
+const btnDismiss = document.getElementById('pwa-dismiss');
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  banner.style.display = 'flex';
+});
+
+btnInstall && btnInstall.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  banner.style.display = 'none';
+});
+
+btnDismiss && btnDismiss.addEventListener('click', () => {
+  banner.style.display = 'none';
+});
+
+window.addEventListener('appinstalled', () => {
+  banner.style.display = 'none';
+  deferredPrompt = null;
+});
+</script>
+
+</body>
+</html>
