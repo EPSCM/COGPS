@@ -18,7 +18,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<!-- jsQR chargé dynamiquement avec fallback multi-CDN (voir loadJsQR()) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -766,23 +766,6 @@ function renderProfTable(){
 function confirmClearAll(){ if(window.confirm('Supprimer toutes les courses enregistrées ?')){ localStorage.removeItem('orientation_races'); renderProfDashboard(); } }
 
 
-// ─── TRACE → IMAGE BASE64 pour PDF ────────────────────
-function buildTraceDataURL(r, wPx, hPx) {
-  const tracePts = r.gpsTrace ? decodeTrace(r.gpsTrace) : [];
-  const checkpoints = (r.laps || [])
-    .filter(l => l.pos && l.pos.lat)
-    .map(l => ({ num: l.num, lat: l.pos.lat, lng: l.pos.lng }));
-  const pts = tracePts.length >= 2 ? tracePts : checkpoints;
-  if (pts.length < 2 && checkpoints.length < 2) return null;
-  const canvas = document.createElement('canvas');
-  canvas.width = wPx; canvas.height = hPx;
-  const ctx = canvas.getContext('2d');
-  drawTraceOnCtx(ctx, wPx, hPx,
-    pts.length >= 2 ? pts : checkpoints,
-    checkpoints);
-  return canvas.toDataURL('image/png');
-}
-
 // ─── EXPORT PDF ───────────────────────────────────────
 function exportPDF(){
   const races = getRaces();
@@ -1090,125 +1073,6 @@ function exportPDF(){
       }
 
       curY += cardH + 6;
-
-      // ── PAGE CARTE GPS (une page par élève si données disponibles) ──
-      const traceImg = buildTraceDataURL(r, 900, 500);
-      const cpWithPos = realOrder.filter(l => l.pos && l.pos.lat);
-
-      if (traceImg) {
-        doc.addPage();
-
-        // Header de la page carte
-        doc.setFillColor(26, 58, 42);
-        doc.rect(0, 0, W, 18, 'F');
-        doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
-        doc.text('TRACE GPS — ' + r.prenom.toUpperCase(), 14, 11);
-        doc.setFontSize(8); doc.setTextColor(116, 198, 157);
-        const dateStr2 = new Date(r.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-        doc.text(fmtFull(r.finalTime) + '  ·  ' + r.validated + '/' + r.nbPostes + ' postes  ·  ' + dateStr2, W - 14, 11, { align:'right' });
-
-        // Légende couleur (bandeau sous le header)
-        doc.setFillColor(240, 248, 243);
-        doc.rect(0, 18, W, 10, 'F');
-        const legendItems = [
-          { color:[116,198,157], label:'Trace GPS' },
-          { color:[82,183,136],  label:'Depart' },
-          { color:[240,165,0],   label:'Arrivee / Postes valides' },
-          { color:[230,57,70],   label:'Poste non geolocalise' }
-        ];
-        let lx = 14;
-        legendItems.forEach(item => {
-          doc.setFillColor(...item.color);
-          doc.circle(lx + 2, 23, 2, 'F');
-          doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(50,80,60);
-          doc.text(item.label, lx + 6, 24.5);
-          lx += doc.getTextWidth(item.label) + 16;
-        });
-
-        // Image de la carte
-        const mapX = 14, mapY = 31;
-        const mapW = W - 28;
-        const mapH = mapW * 500 / 900; // ratio 900×500
-        doc.addImage(traceImg, 'PNG', mapX, mapY, mapW, mapH);
-
-        // Bordure autour de la carte
-        doc.setDrawColor(180, 210, 190); doc.setLineWidth(0.4);
-        doc.rect(mapX, mapY, mapW, mapH);
-
-        // Tableau des postes géolocalisés sous la carte
-        const tableY = mapY + mapH + 8;
-
-        if (cpWithPos.length > 0) {
-          doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(26,58,42);
-          doc.text('Coordonnees GPS des postes valides', 14, tableY);
-          doc.setDrawColor(116, 198, 157); doc.setLineWidth(0.3);
-          doc.line(14, tableY + 1.5, W - 14, tableY + 1.5);
-
-          // En-têtes colonnes
-          const colsGps = [
-            { label:'Poste',    x: 14,    w: 18 },
-            { label:'Temps',    x: 34,    w: 24 },
-            { label:'Split',    x: 60,    w: 22 },
-            { label:'Latitude', x: 84,    w: 38 },
-            { label:'Longitude',x: 124,   w: 38 },
-            { label:'Precision',x: 164,   w: 28 }
-          ];
-          const hdrY = tableY + 8;
-          doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(100, 140, 110);
-          colsGps.forEach(c => doc.text(c.label, c.x, hdrY));
-          doc.setDrawColor(200,225,210); doc.setLineWidth(0.2);
-          doc.line(14, hdrY + 1.5, W - 14, hdrY + 1.5);
-
-          let prevT = 0;
-          cpWithPos.sort((a,b) => a.time - b.time).forEach((lap, ri) => {
-            const ry = hdrY + 6 + ri * 7;
-            const split = lap.time - prevT; prevT = lap.time;
-            if (ri % 2 === 0) {
-              doc.setFillColor(240, 248, 243);
-              doc.rect(13, ry - 4.5, W - 26, 6.5, 'F');
-            }
-            doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-
-            // Bulle numéro poste
-            doc.setFillColor(240, 165, 0);
-            doc.circle(colsGps[0].x + 3, ry - 1.5, 3.5, 'F');
-            doc.setTextColor(255,255,255); doc.setFontSize(6); doc.setFont('helvetica','bold');
-            doc.text(String(lap.num), colsGps[0].x + 3, ry - 0.2, { align:'center' });
-
-            doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(50,80,60);
-            doc.text(fmtFull(lap.time),           colsGps[1].x, ry);
-            doc.setTextColor(100,140,110);
-            doc.text('+' + fmtFull(split),         colsGps[2].x, ry);
-            doc.setTextColor(50,80,60);
-            doc.text(lap.pos.lat.toFixed(6),       colsGps[3].x, ry);
-            doc.text(lap.pos.lng.toFixed(6),       colsGps[4].x, ry);
-            doc.setTextColor(lap.pos.acc && lap.pos.acc <= 10 ? [45,106,79] : lap.pos.acc <= 25 ? [180,120,20] : [180,60,50]);
-            doc.text(lap.pos.acc ? '±' + lap.pos.acc + ' m' : '—', colsGps[5].x, ry);
-          });
-
-          // Postes sans position
-          const cpNoPos = realOrder.filter(l => !l.pos || !l.pos.lat);
-          if (cpNoPos.length > 0) {
-            const noY = hdrY + 6 + cpWithPos.length * 7 + 4;
-            doc.setFontSize(7); doc.setFont('helvetica','italic'); doc.setTextColor(180,60,50);
-            doc.text('Postes sans donnee GPS : ' + cpNoPos.map(l => l.num).join(', '), 14, noY);
-          }
-        } else {
-          // Aucun poste géolocalisé — trace seule
-          doc.setFontSize(8); doc.setFont('helvetica','italic'); doc.setTextColor(140,160,145);
-          doc.text('Trace GPS enregistree — aucune position de poste disponible.', 14, tableY + 6);
-        }
-
-        // Page de continuation seulement si ce n'est pas le dernier élève
-        if (ri < sorted.length - 1) {
-          doc.addPage();
-          doc.setFillColor(26, 58, 42);
-          doc.rect(0, 0, W, 18, 'F');
-          doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
-          doc.text("ANALYSE DETAILLEE DES PARCOURS (suite)", 14, 11);
-          curY = 26;
-        }
-      }
     });
 
     // ── FOOTERS ──
@@ -1305,96 +1169,113 @@ function decodeTrace(enc) {
 }
 
 // ─── TRACE CANVAS ──────────────────────────────────────
-function drawTrace(canvasId, pts, checkpoints) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas || !pts || pts.length < 2) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.offsetWidth || 300;
-  canvas.width = W * window.devicePixelRatio;
-  canvas.height = 200 * window.devicePixelRatio;
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-  const cw = W, ch = 200;
 
-  // Calcul des bornes — inclure les points de postes dans les bornes
+// Noyau de rendu — utilisé par l'écran résultats ET par l'export PDF
+function drawTraceOnCtx(ctx, cw, ch, pts, checkpoints) {
+  if (!pts || pts.length < 2) return;
+
   const allPts = [...pts, ...(checkpoints || []).filter(c => c.lat && c.lng)];
   const lats = allPts.map(p => p.lat), lngs = allPts.map(p => p.lng);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-  const pad = 28;
+  const pad = Math.max(22, Math.round(cw * 0.07));
   const scaleX = (maxLng - minLng) < 1e-9 ? 1 : (cw - pad*2) / (maxLng - minLng);
   const scaleY = (maxLat - minLat) < 1e-9 ? 1 : (ch - pad*2) / (maxLat - minLat);
-
   const toX = lng => pad + (lng - minLng) * scaleX;
   const toY = lat => ch - pad - (lat - minLat) * scaleY;
 
   // Fond
   ctx.fillStyle = '#0f2419'; ctx.fillRect(0, 0, cw, ch);
 
-  // Grille légère
-  ctx.strokeStyle = 'rgba(116,198,157,.07)'; ctx.lineWidth = 1;
+  // Grille
+  ctx.strokeStyle = 'rgba(116,198,157,.07)'; ctx.lineWidth = Math.max(1, cw/300);
   for (let i = 0; i <= 4; i++) {
-    const x = pad + i * (cw - pad*2) / 4;
-    const y = pad + i * (ch - pad*2) / 4;
-    ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, ch - pad); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(cw - pad, y); ctx.stroke();
+    const x = pad + i*(cw-pad*2)/4, y = pad + i*(ch-pad*2)/4;
+    ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, ch-pad); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(cw-pad, y); ctx.stroke();
   }
 
-  // Trace ombre
-  ctx.shadowColor = 'rgba(116,198,157,.35)'; ctx.shadowBlur = 8;
-  ctx.strokeStyle = 'rgba(116,198,157,.25)'; ctx.lineWidth = 5;
+  // Ombre trace
+  ctx.shadowColor = 'rgba(116,198,157,.35)'; ctx.shadowBlur = Math.round(cw/40);
+  ctx.strokeStyle = 'rgba(116,198,157,.25)'; ctx.lineWidth = Math.round(cw/60);
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   ctx.beginPath();
-  pts.forEach((p, i) => i === 0 ? ctx.moveTo(toX(p.lng), toY(p.lat)) : ctx.lineTo(toX(p.lng), toY(p.lat)));
+  pts.forEach((p,i) => i===0 ? ctx.moveTo(toX(p.lng),toY(p.lat)) : ctx.lineTo(toX(p.lng),toY(p.lat)));
   ctx.stroke();
 
-  // Trace principale (dégradé vert → or)
+  // Trace principale
   ctx.shadowBlur = 0;
-  const grad = ctx.createLinearGradient(toX(pts[0].lng), toY(pts[0].lat), toX(pts[pts.length-1].lng), toY(pts[pts.length-1].lat));
-  grad.addColorStop(0, '#52b788'); grad.addColorStop(1, '#f0a500');
-  ctx.strokeStyle = grad; ctx.lineWidth = 2.5;
+  const grad = ctx.createLinearGradient(toX(pts[0].lng),toY(pts[0].lat),toX(pts[pts.length-1].lng),toY(pts[pts.length-1].lat));
+  grad.addColorStop(0,'#52b788'); grad.addColorStop(1,'#f0a500');
+  ctx.strokeStyle = grad; ctx.lineWidth = Math.max(2, Math.round(cw/120));
   ctx.beginPath();
-  pts.forEach((p, i) => i === 0 ? ctx.moveTo(toX(p.lng), toY(p.lat)) : ctx.lineTo(toX(p.lng), toY(p.lat)));
+  pts.forEach((p,i) => i===0 ? ctx.moveTo(toX(p.lng),toY(p.lat)) : ctx.lineTo(toX(p.lng),toY(p.lat)));
   ctx.stroke();
 
-  // ── Marqueurs de postes validés ──
+  // Marqueurs postes
+  const markerR = Math.max(7, Math.round(cw/40));
+  const fontSize = Math.max(9, Math.round(cw/32));
   if (checkpoints && checkpoints.length) {
     checkpoints.forEach(cp => {
       if (!cp.lat || !cp.lng) return;
       const x = toX(cp.lng), y = toY(cp.lat);
-      // Halo
-      ctx.shadowColor = 'rgba(240,165,0,.6)'; ctx.shadowBlur = 12;
+      ctx.shadowColor = 'rgba(240,165,0,.6)'; ctx.shadowBlur = markerR;
       ctx.fillStyle = '#f0a500';
-      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, markerR, 0, Math.PI*2); ctx.fill();
       ctx.shadowBlur = 0;
-      // Contour blanc
-      ctx.strokeStyle = 'white'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.stroke();
-      // Numéro du poste
+      ctx.strokeStyle = 'white'; ctx.lineWidth = Math.max(1.5, markerR*0.18);
+      ctx.beginPath(); ctx.arc(x, y, markerR, 0, Math.PI*2); ctx.stroke();
       ctx.fillStyle = '#1a3a2a';
-      ctx.font = `bold ${cp.num >= 10 ? 7 : 9}px DM Sans, sans-serif`;
+      ctx.font = `bold ${cp.num >= 10 ? fontSize-2 : fontSize}px sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(cp.num), x, y + 0.5);
     });
   }
-
   ctx.textBaseline = 'alphabetic';
 
-  // Point de départ (vert)
-  ctx.fillStyle = '#74c69d'; ctx.shadowColor = '#74c69d'; ctx.shadowBlur = 10;
-  ctx.beginPath(); ctx.arc(toX(pts[0].lng), toY(pts[0].lat), 5, 0, Math.PI*2); ctx.fill();
+  // Point départ / arrivée
+  const dotR = Math.max(5, Math.round(cw/60));
+  ctx.fillStyle = '#74c69d'; ctx.shadowColor = '#74c69d'; ctx.shadowBlur = dotR*2;
+  ctx.beginPath(); ctx.arc(toX(pts[0].lng),toY(pts[0].lat),dotR,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#f0a500'; ctx.shadowColor = '#f0a500';
+  ctx.beginPath(); ctx.arc(toX(pts[pts.length-1].lng),toY(pts[pts.length-1].lat),dotR,0,Math.PI*2); ctx.fill();
   ctx.shadowBlur = 0;
 
-  // Point d'arrivée (orange)
-  ctx.fillStyle = '#f0a500'; ctx.shadowColor = '#f0a500'; ctx.shadowBlur = 10;
-  ctx.beginPath(); ctx.arc(toX(pts[pts.length-1].lng), toY(pts[pts.length-1].lat), 5, 0, Math.PI*2); ctx.fill();
-  ctx.shadowBlur = 0;
+  // Légendes
+  const legFont = Math.max(9, Math.round(cw/36));
+  ctx.font = `bold ${legFont}px sans-serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  const sx = toX(pts[0].lng), sy = toY(pts[0].lat);
+  const ex = toX(pts[pts.length-1].lng), ey = toY(pts[pts.length-1].lat);
+  ctx.fillStyle = 'rgba(116,198,157,.8)';
+  ctx.fillText('▲ Départ', sx + dotR + 3, sy + legFont*0.35);
+  ctx.fillStyle = 'rgba(240,165,0,.9)';
+  ctx.fillText('■ Retour', ex + dotR + 3, ey + legFont*0.35);
+}
 
-  // Légende
-  ctx.font = 'bold 9px DM Sans, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = 'rgba(116,198,157,.7)';
-  ctx.fillText('▲ Départ', toX(pts[0].lng) + 7, toY(pts[0].lat) + 4);
-  ctx.fillStyle = 'rgba(240,165,0,.8)';
-  ctx.fillText('■ Retour', toX(pts[pts.length-1].lng) + 7, toY(pts[pts.length-1].lat) + 4);
+function drawTrace(canvasId, pts, checkpoints) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const W = canvas.offsetWidth || 300;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr; canvas.height = 200 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  drawTraceOnCtx(ctx, W, 200, pts, checkpoints);
+}
+
+// Génère un PNG base64 de la trace pour l'export PDF
+function buildTraceDataURL(r, wPx, hPx) {
+  const tracePts = r.gpsTrace ? decodeTrace(r.gpsTrace) : [];
+  const checkpoints = (r.laps || [])
+    .filter(l => l.pos && l.pos.lat)
+    .map(l => ({ num: l.num, lat: l.pos.lat, lng: l.pos.lng }));
+  const pts = tracePts.length >= 2 ? tracePts : checkpoints;
+  if (pts.length < 2 && checkpoints.length < 2) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = wPx; canvas.height = hPx;
+  drawTraceOnCtx(canvas.getContext('2d'), wPx, hPx,
+    pts.length >= 2 ? pts : checkpoints, checkpoints);
+  return canvas.toDataURL('image/png');
 }
 
 // ─── QR CODE ──────────────────────────────────────────
@@ -1450,197 +1331,50 @@ function closeQR() { document.getElementById('qr-overlay').style.display = 'none
 
 // ─── SCANNER ──────────────────────────────────────────
 let scanInterval = null;
-let scanStream   = null;
-let scanActive   = false;
-let jsQRReady    = false;   // true quand jsQR est chargé
-
-// CDN sources pour jsQR, testés dans l'ordre
-const JSQR_CDNS = [
-  'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
-  'https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js'
-];
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload  = resolve;
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
-
-async function loadJsQR() {
-  if (typeof jsQR !== 'undefined') { jsQRReady = true; return true; }
-  for (const url of JSQR_CDNS) {
-    try {
-      await loadScript(url);
-      if (typeof jsQR !== 'undefined') { jsQRReady = true; console.log('[Scanner] jsQR chargé depuis', url); return true; }
-    } catch(e) { console.warn('[Scanner] CDN échoué :', url); }
-  }
-  return false;
-}
-
-// Déterminer la stratégie de scan disponible
-async function getScanStrategy() {
-  // 1. BarcodeDetector (API native — Chrome Android / Chrome Desktop)
-  if ('BarcodeDetector' in window) {
-    try {
-      const formats = await BarcodeDetector.getSupportedFormats();
-      if (formats.includes('qr_code')) return 'native';
-    } catch(e) {}
-  }
-  // 2. jsQR (bibliothèque JS)
-  if (await loadJsQR()) return 'jsqr';
-  return null;
-}
+let scanStream = null;
 
 async function startScanner() {
-  stopScanLoop();
-
   const overlay = document.getElementById('scan-overlay');
-  const result  = document.getElementById('scan-result');
-  const video   = document.getElementById('scan-video');
-  const hint    = document.getElementById('scan-hint');
-
-  result.style.display = 'none';
-  result.innerHTML = '';
-  if (hint) hint.style.display = 'block';
-  overlay.style.display = 'flex';
-  scanActive = true;
-
-  // Afficher un indicateur de chargement
-  result.style.display = 'block';
-  result.innerHTML = `<div style="text-align:center;padding:20px;color:rgba(255,255,255,.5);font-size:14px;">
-    <div style="font-size:30px;margin-bottom:8px;">⏳</div>Initialisation du scanner…</div>`;
-
-  // Déterminer la stratégie
-  const strategy = await getScanStrategy();
+  const result = document.getElementById('scan-result');
   result.style.display = 'none'; result.innerHTML = '';
-
-  if (!strategy) {
-    showScanError(`Aucun scanner QR disponible sur cet appareil.<br>
-      <small style="opacity:.7">BarcodeDetector non supporté et jsQR inaccessible (pas de réseau ?).<br>
-      Essaie avec Chrome sur Android ou Chrome Desktop.</small>`);
-    return;
-  }
-
-  // Accès caméra
-  if (!navigator.mediaDevices?.getUserMedia) {
-    showScanError('La caméra n\'est pas accessible.<br><small>Assure-toi d\'utiliser HTTPS.</small>');
-    return;
-  }
+  overlay.style.display = 'flex';
 
   try {
-    if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
-
     scanStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
     });
-
-    video.srcObject = scanStream;
-    await new Promise((resolve, reject) => {
-      video.onloadedmetadata = resolve;
-      video.onerror = reject;
-      setTimeout(reject, 8000);
-    });
-    await video.play();
-
-    if (hint) hint.style.display = 'block';
-    startScanLoop(video, strategy);
-
+    const video = document.getElementById('scan-video');
+    video.srcObject = scanStream; video.play();
+    scanInterval = setInterval(() => scanFrame(video), 250);
   } catch(e) {
-    const msgs = {
-      NotAllowedError:  'Permission caméra refusée.<br><small>Autorise la caméra dans les réglages du navigateur.</small>',
-      NotFoundError:    'Aucune caméra détectée sur cet appareil.',
-      NotReadableError: 'Caméra déjà utilisée par une autre application.'
-    };
-    showScanError(msgs[e.name] || 'Caméra inaccessible.<br><small>' + e.message + '</small>');
+    document.getElementById('scan-result').style.display = 'block';
+    document.getElementById('scan-result').innerHTML = `<p style="color:#e63946;text-align:center;padding:16px;">Caméra inaccessible.<br><small>${e.message}</small></p>`;
   }
 }
 
-function startScanLoop(video, strategy) {
-  stopScanLoop();
-  let detector = null;
-  if (strategy === 'native') {
-    detector = new BarcodeDetector({ formats: ['qr_code'] });
-  }
-
-  scanInterval = setInterval(async () => {
-    if (!scanActive) { stopScanLoop(); return; }
-    if (!video.videoWidth || video.readyState < 2) return;
-
-    try {
-      if (strategy === 'native') {
-        // BarcodeDetector — le plus rapide, pas besoin de canvas
-        const codes = await detector.detect(video);
-        if (codes.length > 0 && codes[0].rawValue) {
-          stopScanLoop();
-          flashSuccess();
-          setTimeout(() => renderScanResult(codes[0].rawValue), 150);
-        }
-      } else {
-        // jsQR — via canvas
-        const canvas = document.getElementById('scan-canvas');
-        canvas.width  = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(video, 0, 0);
-        const img  = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-        if (code?.data) {
-          stopScanLoop();
-          flashSuccess();
-          setTimeout(() => renderScanResult(code.data), 150);
-        }
-      }
-    } catch(e) { /* frame ignorée */ }
-  }, strategy === 'native' ? 300 : 200);
-}
-
-function flashSuccess() {
-  const v = document.getElementById('scan-video');
-  if (v) { v.style.borderColor = '#74c69d'; v.style.boxShadow = '0 0 24px rgba(116,198,157,.7)'; }
-}
-
-function stopScanLoop() {
-  if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
+function scanFrame(video) {
+  if (!video.videoWidth) return;
+  const canvas = document.getElementById('scan-canvas');
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  try {
+    const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+    if (code) { clearInterval(scanInterval); renderScanResult(code.data); }
+  } catch(e) {}
 }
 
 function stopScanner() {
-  scanActive = false;
-  stopScanLoop();
+  clearInterval(scanInterval); scanInterval = null;
   if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
-  const v = document.getElementById('scan-video');
-  if (v) { v.srcObject = null; v.style.borderColor = ''; v.style.boxShadow = ''; }
   document.getElementById('scan-overlay').style.display = 'none';
-}
-
-function showScanError(msg) {
-  const result = document.getElementById('scan-result');
-  if (!result) return;
-  result.style.display = 'block';
-  result.innerHTML = `
-    <div style="text-align:center;padding:20px;">
-      <div style="font-size:36px;margin-bottom:12px;">📵</div>
-      <p style="color:#e63946;font-size:14px;line-height:1.7;margin-bottom:16px;">${msg}</p>
-      <button onclick="startScanner()"
-        style="background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:12px;
-               color:rgba(255,255,255,.7);font-size:14px;padding:12px 24px;cursor:pointer;width:100%;">
-        🔄 Réessayer
-      </button>
-    </div>`;
+  document.getElementById('scan-video').srcObject = null;
 }
 
 function renderScanResult(raw) {
   const result = document.getElementById('scan-result');
   result.style.display = 'block';
-  const hint = document.getElementById('scan-hint');
-  if (hint) hint.style.display = 'none';
-  // Réinitialiser le style de la vidéo
-  const video = document.getElementById('scan-video');
-  if (video) { video.style.borderColor = ''; video.style.boxShadow = ''; }
   try {
     const r = JSON.parse(raw);
     if (r.v !== 1 || !r.n) throw new Error('Format invalide');
@@ -1699,7 +1433,7 @@ function renderScanResult(raw) {
       ${projetHtml}
       ${traceHtml}
       <button onclick="saveScannedRace(${JSON.stringify(raw).replace(/</g,'\\u003c')})" style="margin-top:14px;background:linear-gradient(135deg,var(--lime),#52b788);color:#1a3a2a;font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:.08em;padding:14px;border-radius:12px;border:none;cursor:pointer;width:100%;">💾 ENREGISTRER CETTE COURSE</button>
-      <button onclick="document.getElementById('scan-result').style.display='none'; startScanner();" style="margin-top:8px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.12);border-radius:12px;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:13px;padding:12px;cursor:pointer;width:100%;">📷 Scanner un autre QR</button>`;
+      <button onclick="document.getElementById('scan-result').style.display='none';startScanner()" style="margin-top:8px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.12);border-radius:12px;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:13px;padding:12px;cursor:pointer;width:100%;">📷 Scanner un autre QR</button>`;
 
     // Draw trace after DOM update
     if (tracePts.length >= 2) {
@@ -1713,7 +1447,7 @@ function renderScanResult(raw) {
 
   } catch(e) {
     result.innerHTML = `<p style="color:#e63946;text-align:center;padding:16px;">QR non reconnu.<br><small>${e.message}</small></p>
-      <button onclick="startScanner()" style="background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.12);border-radius:12px;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:13px;padding:12px;cursor:pointer;width:100%;margin-top:8px;">🔄 Réessayer</button>`;
+    <button onclick="document.getElementById('scan-result').style.display='none';scanInterval=setInterval(()=>scanFrame(document.getElementById('scan-video')),250);" style="background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.12);border-radius:12px;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:13px;padding:12px;cursor:pointer;width:100%;margin-top:8px;">Réessayer</button>`;
   }
 }
 
@@ -1774,7 +1508,7 @@ renderPostesPreview();
       <div style="position:absolute;top:50%;left:8px;right:8px;height:2px;background:linear-gradient(90deg,transparent,var(--lime),transparent);animation:scan-line 2s ease-in-out infinite;"></div>
     </div>
   </div>
-  <p id="scan-hint" style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:12px;">Pointe la caméra vers le QR code de l'élève</p>
+  <p style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:12px;">Pointe la caméra vers le QR code de l'élève</p>
   <div id="scan-result" style="display:none;" class="scan-result-card"></div>
   <button onclick="stopScanner()" style="margin-top:14px;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:12px;color:rgba(255,255,255,.6);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 24px;cursor:pointer;">Fermer le scanner</button>
 </div>
