@@ -150,6 +150,19 @@
   #scan-video{width:100%;max-width:400px;border-radius:16px;border:3px solid var(--lime);}
   .scan-corner{position:absolute;width:40px;height:40px;border-color:var(--lime);border-style:solid;border-width:0;}
   .scan-result-card{background:rgba(26,58,42,.95);border:2px solid var(--lime);border-radius:20px;padding:20px;max-width:420px;width:calc(100% - 32px);max-height:80vh;overflow-y:auto;}
+
+  /* ── Answer modal ── */
+  .answer-overlay{position:fixed;inset:0;z-index:8500;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;padding:0;backdrop-filter:blur(4px);}
+  .answer-card{background:linear-gradient(180deg,#1e4434 0%,#162e22 100%);border-radius:24px 24px 0 0;padding:28px 24px 36px;width:100%;max-width:480px;border-top:2px solid rgba(116,198,157,.3);box-shadow:0 -12px 48px rgba(0,0,0,.5);}
+  @keyframes slide-up{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+  .answer-card{animation:slide-up .3s cubic-bezier(.34,1.56,.64,1) forwards;}
+  .answer-num-badge{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--leaf),var(--lime));display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:26px;color:white;flex-shrink:0;box-shadow:0 4px 16px rgba(116,198,157,.35);}
+  .answer-textarea{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:14px;color:white;font-family:'DM Sans',sans-serif;font-size:16px;padding:14px 16px;width:100%;outline:none;transition:border-color .2s;resize:none;min-height:80px;}
+  .answer-textarea::placeholder{color:rgba(255,255,255,.3);}
+  .answer-textarea:focus{border-color:var(--lime);}
+  .btn-validate-answer{background:linear-gradient(135deg,var(--lime),#52b788);color:var(--forest);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.08em;padding:16px 28px;border-radius:14px;border:none;cursor:pointer;width:100%;transition:all .2s;box-shadow:0 6px 20px rgba(116,198,157,.3);}
+  .btn-validate-answer:active{transform:scale(.97);box-shadow:none;}
+  .btn-skip-answer{background:transparent;border:none;color:rgba(255,255,255,.3);font-family:'DM Sans',sans-serif;font-size:13px;padding:10px;cursor:pointer;letter-spacing:.04em;width:100%;text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -448,6 +461,32 @@
   </div>
 </div>
 
+<!-- ══════════════ ANSWER MODAL ══════════════ -->
+<div id="answer-overlay" class="answer-overlay" style="display:none;" onclick="if(event.target===this)skipAnswer()">
+  <div class="answer-card">
+    <div class="flex items-center gap-4 mb-5">
+      <div class="answer-num-badge" id="answer-num-badge">1</div>
+      <div>
+        <p style="color:var(--lime);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">Poste validé !</p>
+        <p style="color:white;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.04em;" id="answer-modal-title">POSTE 1</p>
+        <p style="color:rgba(255,255,255,.4);font-size:12px;" id="answer-modal-time">—</p>
+      </div>
+    </div>
+    <div class="mb-4">
+      <label style="display:block;color:rgba(255,255,255,.6);font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">Réponse du poste</label>
+      <textarea id="answer-input" class="answer-textarea" placeholder="Écris ici la réponse trouvée au poste…" rows="3" maxlength="200" oninput="document.getElementById('answer-char-count').textContent=this.value.length"></textarea>
+      <p style="color:rgba(255,255,255,.2);font-size:11px;margin-top:5px;text-align:right;"><span id="answer-char-count">0</span>/200 caractères</p>
+    </div>
+    <button class="btn-validate-answer" onclick="confirmAnswer()">
+      <span style="display:flex;align-items:center;justify-content:center;">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="margin-right:8px;"><path d="M4 10l5 5 7-8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        VALIDER LA RÉPONSE
+      </span>
+    </button>
+    <button class="btn-skip-answer" onclick="skipAnswer()">Pas de réponse à ce poste</button>
+  </div>
+</div>
+
 <script>
 // ─── STATE ────────────────────────────────────────────
 let state = { prenom:'', nbPostes:8, validated:[], laps:[], startTime:null, timerInterval:null, isRunning:false, finalTime:0, projet:[] };
@@ -620,8 +659,12 @@ function buildCheckpointGrid(){
   const n=state.nbPostes; g.style.gridTemplateColumns=n<=4?`repeat(${n},1fr)`:n<=9?'repeat(3,1fr)':'repeat(4,1fr)';
   for(let i=1;i<=n;i++){ const b=document.createElement('button'); b.className='checkpoint-btn'; b.id=`cp-${i}`; b.innerHTML=`<span>${i}</span><span class="checkpoint-label">Poste</span>`; b.onclick=()=>validateCheckpoint(i); g.appendChild(b); }
 }
+// Pending checkpoint awaiting answer input
+let pendingCheckpoint = null;
+
 function validateCheckpoint(num){
   if(!state.isRunning) return;
+  // Dé-validation (annulation)
   if(state.validated.includes(num)){
     state.validated=state.validated.filter(n=>n!==num);
     state.laps=state.laps.filter(l=>l.num!==num);
@@ -630,18 +673,56 @@ function validateCheckpoint(num){
     b.innerHTML=`<span>${num}</span><span class="checkpoint-label">Poste</span>`;
     updateRunProgress(); return;
   }
-  const e=performance.now()-state.startTime;
-  // Capture la position GPS au moment exact de la validation
+  // Capture le temps et la position GPS au moment exact du tap
+  const elapsed = performance.now()-state.startTime;
   const pos = gpsCurrentPos ? { lat: gpsCurrentPos.lat, lng: gpsCurrentPos.lng, acc: gpsCurrentPos.acc } : null;
+  // Ouvrir la modale de réponse
+  pendingCheckpoint = { num, elapsed, pos };
+  openAnswerModal(num, elapsed);
+}
+
+function openAnswerModal(num, elapsed) {
+  document.getElementById('answer-num-badge').textContent = num;
+  document.getElementById('answer-modal-title').textContent = 'POSTE ' + num;
+  document.getElementById('answer-modal-time').textContent = 'Temps : ' + fmtFull(elapsed);
+  const input = document.getElementById('answer-input');
+  input.value = '';
+  document.getElementById('answer-char-count').textContent = '0';
+  document.getElementById('answer-overlay').style.display = 'flex';
+  setTimeout(() => input.focus(), 350);
+}
+
+function confirmAnswer() {
+  if(!pendingCheckpoint) return;
+  const answerText = document.getElementById('answer-input').value.trim();
+  _doValidateCheckpoint(pendingCheckpoint.num, pendingCheckpoint.elapsed, pendingCheckpoint.pos, answerText);
+  closeAnswerModal();
+}
+
+function skipAnswer() {
+  if(!pendingCheckpoint) return;
+  _doValidateCheckpoint(pendingCheckpoint.num, pendingCheckpoint.elapsed, pendingCheckpoint.pos, '');
+  closeAnswerModal();
+}
+
+function closeAnswerModal() {
+  document.getElementById('answer-overlay').style.display = 'none';
+  document.getElementById('answer-input').value = '';
+  pendingCheckpoint = null;
+}
+
+function _doValidateCheckpoint(num, e, pos, answer) {
   state.validated.push(num);
-  state.laps.push({ num, time: e, pos });
+  state.laps.push({ num, time: e, pos, answer });
   const b=document.getElementById(`cp-${num}`);
   b.classList.add('validated');
-  // Afficher le badge GPS dans le bouton si position connue
   const gpsBadgeHtml = pos
     ? `<span style="font-size:9px;color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;">📍±${pos.acc}m</span>`
     : `<span style="font-size:9px;color:rgba(255,255,255,.25);font-family:'DM Sans',sans-serif;">📍—</span>`;
-  b.innerHTML=`<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10l5 5 7-8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="checkpoint-label" style="color:rgba(255,255,255,.9)">✓ ${num}</span>${gpsBadgeHtml}`;
+  const answerBadge = answer
+    ? `<span style="font-size:8px;color:rgba(255,255,255,.7);font-family:'DM Sans',sans-serif;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">💬 ${answer.substring(0,20)}${answer.length>20?'…':''}</span>`
+    : '';
+  b.innerHTML=`<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10l5 5 7-8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="checkpoint-label" style="color:rgba(255,255,255,.9)">✓ ${num}</span>${gpsBadgeHtml}${answerBadge}`;
   beepCheckpoint(); updateRunProgress(); updatePlanStrip();
   if(state.validated.length===state.nbPostes){ const s=document.getElementById('btn-stop'); if(s){ s.style.animation='none'; s.style.animation='stop-pulse 1s ease-in-out infinite'; } }
 }
@@ -671,6 +752,9 @@ function showResults(){
       const gpsTag = l.pos
         ? `<span style="font-size:10px;color:rgba(116,198,157,.6);display:block;margin-top:1px;">📍 ${l.pos.lat.toFixed(5)}, ${l.pos.lng.toFixed(5)} <span style="color:rgba(255,255,255,.2);">±${l.pos.acc}m</span></span>`
         : `<span style="font-size:10px;color:rgba(255,255,255,.2);display:block;margin-top:1px;">📍 position non disponible</span>`;
+      const answerTag = l.answer
+        ? `<div style="margin-top:4px;background:rgba(116,198,157,.1);border:1px solid rgba(116,198,157,.2);border-radius:8px;padding:6px 10px;font-size:12px;color:rgba(255,255,255,.75);display:flex;align-items:flex-start;gap:6px;"><span style="color:var(--lime);flex-shrink:0;">💬</span><span>${l.answer}</span></div>`
+        : `<div style="margin-top:4px;font-size:11px;color:rgba(255,255,255,.2);">💬 Aucune réponse saisie</div>`;
       return `<div class="lap-item" style="flex-direction:column;align-items:stretch;gap:4px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div style="display:flex;align-items:center;gap:10px;">
@@ -683,6 +767,7 @@ function showResults(){
           <div class="font-display text-right" style="font-size:18px;color:white;">${fmtFull(l.time)}</div>
         </div>
         ${gpsTag}
+        ${answerTag}
       </div>`;
     }).join('');
   }
@@ -708,7 +793,7 @@ function newRace(){ showScreen('setup'); document.getElementById('countdown-disp
 
 // ─── SAVE / LOAD (localStorage) ───────────────────────
 function saveRace(){
-  const record={ id:Date.now(), prenom:state.prenom, nbPostes:state.nbPostes, validated:state.validated.length, finalTime:state.finalTime, laps:state.laps, projet:state.projet.slice(), date:new Date().toISOString(), complete:state.validated.length===state.nbPostes, gpsTrace:encodeTrace(gpsTrace) };
+  const record={ id:Date.now(), prenom:state.prenom, nbPostes:state.nbPostes, validated:state.validated.length, finalTime:state.finalTime, laps:state.laps.map(l=>({num:l.num, time:l.time, pos:l.pos||null, answer:l.answer||''})), projet:state.projet.slice(), date:new Date().toISOString(), complete:state.validated.length===state.nbPostes, gpsTrace:encodeTrace(gpsTrace) };
   const arr=getRaces(); arr.push(record); localStorage.setItem('orientation_races',JSON.stringify(arr));
 }
 function getRaces(){ try{ return JSON.parse(localStorage.getItem('orientation_races')||'[]'); }catch{ return []; } }
@@ -910,10 +995,14 @@ function exportPDF(){
       const pct = Math.round((r.validated / r.nbPostes) * 100);
       const hasProjet = r.projet && r.projet.length > 0;
       const realOrder = r.laps ? [...r.laps].sort((a,b) => a.time - b.time) : [];
+      // Answers block
+      const lapsWithAnswer = realOrder.filter(l => l.answer && l.answer.trim().length > 0);
+      const hasAnswers = lapsWithAnswer.length > 0;
+      const answerBlockH = hasAnswers ? 8 + lapsWithAnswer.length * 9 : 0;
 
       // Estimate card height
       const maxRows = Math.max(hasProjet ? r.projet.length : 0, realOrder.length, 1);
-      const cardH = 14 + maxRows * 7 + 8;
+      const cardH = 14 + maxRows * 7 + 8 + (hasAnswers ? answerBlockH + 6 : 0);
 
       // Page break
       if(curY + cardH > H - 14){
@@ -1065,11 +1154,34 @@ function exportPDF(){
           if(r.projet[s] === realOrder[s].num) matches++;
         }
         const score = Math.round((matches / maxComp) * 100);
-        const scoreY = curY + cardH - 4;
+        const scoreY = curY + cardH - (hasAnswers ? answerBlockH + 10 : 4);
         doc.setFontSize(7); doc.setFont('helvetica','bold');
         const scoreColor = score >= 80 ? [45,106,79] : score >= 50 ? [180,120,20] : [180,60,50];
         doc.setTextColor(...scoreColor);
         doc.text('Respect du projet : ' + score + '% (' + matches + '/' + maxComp + ' postes dans lordre prevu)', cardMargin + 3, scoreY);
+      }
+
+      // Answers block
+      if(hasAnswers){
+        const ansY = curY + cardH - answerBlockH - 4;
+        // Section title
+        doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(100, 140, 110);
+        doc.text('REPONSES DES POSTES', cardMargin + 3, ansY);
+        doc.setDrawColor(180, 220, 190); doc.setLineWidth(0.2);
+        doc.line(cardMargin + 3, ansY + 1.5, cardMargin + cardW - 3, ansY + 1.5);
+        lapsWithAnswer.forEach((l, ai) => {
+          const aRowY = ansY + 7 + ai * 9;
+          // Poste badge
+          doc.setFillColor(26, 58, 42);
+          doc.roundedRect(cardMargin + 3, aRowY - 5, 9, 6, 1, 1, 'F');
+          doc.setFontSize(6); doc.setFont('helvetica','bold'); doc.setTextColor(116, 198, 157);
+          doc.text(String(l.num), cardMargin + 7.5, aRowY - 0.8, { align:'center' });
+          // Answer text
+          const maxW = cardW - 20;
+          doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(40, 70, 50);
+          const answerStr = l.answer.length > 90 ? l.answer.substring(0, 87) + '…' : l.answer;
+          doc.text(answerStr, cardMargin + 16, aRowY - 1, { maxWidth: maxW });
+        });
       }
 
       curY += cardH + 6;
@@ -1467,7 +1579,8 @@ function saveScannedRaceData(r) {
     validated: r.vl, finalTime: r.t,
     laps: (r.l || []).map(lap => ({
       num: lap[0], time: lap[1],
-      pos: lap.length >= 4 ? { lat: lap[2]/1e5, lng: lap[3]/1e5, acc: lap[4] || null } : null
+      pos: lap.length >= 4 ? { lat: lap[2]/1e5, lng: lap[3]/1e5, acc: lap[4] || null } : null,
+      answer: lap[5] || ''
     })),
     projet: r.pr || [], date: r.d ? r.d + ':00Z' : new Date().toISOString(),
     complete: r.vl === r.nb, gpsTrace: r.g || '',
@@ -1482,6 +1595,7 @@ function saveScannedRaceData(r) {
 // ─── INIT ─────────────────────────────────────────────
 renderPostesPreview();
 </script>
+
 
 <!-- ══════════════ QR OVERLAY ══════════════ -->
 <div id="qr-overlay" class="qr-overlay" style="display:none;" onclick="if(event.target===this)closeQR()">
